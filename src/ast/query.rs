@@ -1237,6 +1237,9 @@ pub enum TableFactor {
         /// Optional index hints(mysql)
         /// See: <https://dev.mysql.com/doc/refman/8.4/en/index-hints.html>
         index_hints: Vec<TableIndexHints>,
+        /// EventFlux: Optional streaming window specification
+        /// Syntax: WINDOW('type', params...)
+        window: Option<StreamingWindowSpec>,
     },
     Derived {
         lateral: bool,
@@ -1876,6 +1879,7 @@ impl fmt::Display for TableFactor {
                 json_path,
                 sample,
                 index_hints,
+                window,
             } => {
                 name.fmt(f)?;
                 if let Some(json_path) = json_path {
@@ -1903,6 +1907,9 @@ impl fmt::Display for TableFactor {
                 }
                 if let Some(alias) = alias {
                     write!(f, " AS {alias}")?;
+                }
+                if let Some(window) = window {
+                    write!(f, " {window}")?;
                 }
                 if !index_hints.is_empty() {
                     write!(f, " {}", display_separated(index_hints, " "))?;
@@ -3738,5 +3745,52 @@ pub struct XmlNamespaceDefinition {
 impl fmt::Display for XmlNamespaceDefinition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} AS {}", self.uri, self.name)
+    }
+}
+
+/// EventFlux: Streaming window specification for table factors
+/// Syntax: WINDOW('type', parameters...)
+/// Note: This is distinct from standard SQL window functions (OVER clause)
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum StreamingWindowSpec {
+    /// Tumbling time window: WINDOW('tumbling', INTERVAL '5' SECOND)
+    Tumbling { duration: Expr },
+    /// Sliding/Hopping window: WINDOW('sliding', INTERVAL '1' HOUR, INTERVAL '15' MINUTE)
+    Sliding { size: Expr, slide: Expr },
+    /// Length-based window: WINDOW('length', 100)
+    Length { size: Expr },
+    /// Session window: WINDOW('session', INTERVAL '10' MINUTE)
+    Session { gap: Expr },
+    /// Time window: WINDOW('time', 1000)
+    Time { duration: Expr },
+    /// Time batch window: WINDOW('timeBatch', 5000)
+    TimeBatch { duration: Expr },
+    /// Length batch window: WINDOW('lengthBatch', 50)
+    LengthBatch { size: Expr },
+    /// External time window: WINDOW('externalTime', timestamp, 1000)
+    ExternalTime { timestamp_field: Expr, duration: Expr },
+    /// External time batch window: WINDOW('externalTimeBatch', timestamp, 1000)
+    ExternalTimeBatch { timestamp_field: Expr, duration: Expr },
+}
+
+impl fmt::Display for StreamingWindowSpec {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StreamingWindowSpec::Tumbling { duration } => write!(f, "WINDOW('tumbling', {})", duration),
+            StreamingWindowSpec::Sliding { size, slide } => write!(f, "WINDOW('sliding', {}, {})", size, slide),
+            StreamingWindowSpec::Length { size } => write!(f, "WINDOW('length', {})", size),
+            StreamingWindowSpec::Session { gap } => write!(f, "WINDOW('session', {})", gap),
+            StreamingWindowSpec::Time { duration } => write!(f, "WINDOW('time', {})", duration),
+            StreamingWindowSpec::TimeBatch { duration } => write!(f, "WINDOW('timeBatch', {})", duration),
+            StreamingWindowSpec::LengthBatch { size } => write!(f, "WINDOW('lengthBatch', {})", size),
+            StreamingWindowSpec::ExternalTime { timestamp_field, duration } => {
+                write!(f, "WINDOW('externalTime', {}, {})", timestamp_field, duration)
+            }
+            StreamingWindowSpec::ExternalTimeBatch { timestamp_field, duration } => {
+                write!(f, "WINDOW('externalTimeBatch', {}, {})", timestamp_field, duration)
+            }
+        }
     }
 }

@@ -13876,6 +13876,7 @@ impl<'a> Parser<'a> {
                 json_path,
                 sample,
                 index_hints,
+                window: None, // Will be set by parse_window_spec if WINDOW keyword found
             };
 
             while let Some(kw) = self.parse_one_of_keywords(&[Keyword::PIVOT, Keyword::UNPIVOT]) {
@@ -13892,8 +13893,87 @@ impl<'a> Parser<'a> {
                 table = self.parse_match_recognize(table)?;
             }
 
+            // EventFlux: Parse streaming WINDOW clause if present
+            if self.parse_keyword(Keyword::WINDOW) {
+                let window_spec = self.parse_streaming_window_spec()?;
+                if let TableFactor::Table { window, .. } = &mut table {
+                    *window = Some(window_spec);
+                }
+            }
+
             Ok(table)
         }
+    }
+
+    /// EventFlux: Parse streaming window specification
+    /// Syntax: WINDOW('type', param1, param2, ...)
+    /// Note: WINDOW keyword should already be consumed by caller
+    fn parse_streaming_window_spec(&mut self) -> Result<StreamingWindowSpec, ParserError> {
+        self.expect_token(&Token::LParen)?;
+
+        // Parse window type as string literal
+        let window_type = self.parse_literal_string()?;
+        self.expect_token(&Token::Comma)?;
+
+        let spec = match window_type.to_lowercase().as_str() {
+            "tumbling" => {
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::Tumbling { duration }
+            }
+            "sliding" | "hop" => {
+                let size = self.parse_expr()?;
+                self.expect_token(&Token::Comma)?;
+                let slide = self.parse_expr()?;
+                StreamingWindowSpec::Sliding { size, slide }
+            }
+            "length" => {
+                let size = self.parse_expr()?;
+                StreamingWindowSpec::Length { size }
+            }
+            "session" => {
+                let gap = self.parse_expr()?;
+                StreamingWindowSpec::Session { gap }
+            }
+            "time" => {
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::Time { duration }
+            }
+            "timebatch" => {
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::TimeBatch { duration }
+            }
+            "lengthbatch" => {
+                let size = self.parse_expr()?;
+                StreamingWindowSpec::LengthBatch { size }
+            }
+            "externaltime" => {
+                let timestamp_field = self.parse_expr()?;
+                self.expect_token(&Token::Comma)?;
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::ExternalTime {
+                    timestamp_field,
+                    duration,
+                }
+            }
+            "externaltimebatch" => {
+                let timestamp_field = self.parse_expr()?;
+                self.expect_token(&Token::Comma)?;
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::ExternalTimeBatch {
+                    timestamp_field,
+                    duration,
+                }
+            }
+            _ => {
+                return self.expected(
+                    "valid streaming window type (tumbling, sliding, length, session, time, timebatch, lengthbatch, externaltime, externaltimebatch)",
+                    self.peek_token(),
+                )
+            }
+        };
+
+        self.expect_token(&Token::RParen)?;
+        Ok(spec)
     }
 
     fn maybe_parse_table_sample(&mut self) -> Result<Option<Box<TableSample>>, ParserError> {

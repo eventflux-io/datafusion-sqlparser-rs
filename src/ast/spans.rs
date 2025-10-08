@@ -1876,6 +1876,7 @@ impl Spanned for TableFactor {
                 json_path: _,
                 sample: _,
                 index_hints: _,
+                window: _,
             } => union_spans(
                 name.0
                     .iter()
