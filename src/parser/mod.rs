@@ -14026,7 +14026,14 @@ impl<'a> Parser<'a> {
             body.push(stmt);
 
             // Consume optional semicolon
-            self.consume_token(&Token::SemiColon);
+            let _ = self.consume_token(&Token::SemiColon);
+        }
+
+        // Validate non-empty body
+        if body.is_empty() {
+            return Err(ParserError::ParserError(
+                "PARTITION body cannot be empty - at least one query required".to_string()
+            ));
         }
 
         Ok(Statement::Partition {
