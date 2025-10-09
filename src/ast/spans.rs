@@ -556,6 +556,11 @@ impl Spanned for Statement {
             Statement::AlterSchema(s) => s.span(),
             Statement::Vacuum(..) => Span::empty(),
             Statement::AlterUser(..) => Span::empty(),
+            Statement::Partition { partition_keys, body } => union_spans(
+                partition_keys.iter().map(|k| k.attribute.span).chain(
+                    body.iter().map(|s| s.span())
+                )
+            ),
         }
     }
 }

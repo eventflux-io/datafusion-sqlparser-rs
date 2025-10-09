@@ -585,6 +585,7 @@ impl<'a> Parser<'a> {
                 Keyword::DROP => self.parse_drop(),
                 Keyword::DISCARD => self.parse_discard(),
                 Keyword::DECLARE => self.parse_declare(),
+                Keyword::PARTITION => self.parse_partition_statement(),
                 Keyword::FETCH => self.parse_fetch_statement(),
                 Keyword::DELETE => self.parse_delete(),
                 Keyword::INSERT => self.parse_insert(),
@@ -13974,6 +13975,64 @@ impl<'a> Parser<'a> {
 
         self.expect_token(&Token::RParen)?;
         Ok(spec)
+    }
+
+    /// Parse PARTITION statement (EventFlux streaming partitions)
+    /// Syntax: PARTITION WITH (attr1 OF stream1, attr2 OF stream2, ...) BEGIN statements END;
+    fn parse_partition_statement(&mut self) -> Result<Statement, ParserError> {
+        // Expect WITH keyword
+        self.expect_keyword(Keyword::WITH)?;
+
+        // Parse partition keys in parentheses
+        self.expect_token(&Token::LParen)?;
+        let mut partition_keys = vec![];
+
+        loop {
+            // Parse attribute name
+            let attribute = self.parse_identifier()?;
+
+            // Expect OF keyword
+            self.expect_keyword(Keyword::OF)?;
+
+            // Parse stream name
+            let stream_name = self.parse_object_name(false)?;
+
+            partition_keys.push(PartitionKey {
+                attribute,
+                stream_name,
+            });
+
+            // Check for more partition keys
+            if !self.consume_token(&Token::Comma) {
+                break;
+            }
+        }
+
+        self.expect_token(&Token::RParen)?;
+
+        // Parse BEGIN keyword
+        self.expect_keyword(Keyword::BEGIN)?;
+
+        // Parse statement body (one or more statements)
+        let mut body = vec![];
+        loop {
+            // Check for END keyword
+            if self.parse_keyword(Keyword::END) {
+                break;
+            }
+
+            // Parse a statement
+            let stmt = self.parse_statement()?;
+            body.push(stmt);
+
+            // Consume optional semicolon
+            self.consume_token(&Token::SemiColon);
+        }
+
+        Ok(Statement::Partition {
+            partition_keys,
+            body,
+        })
     }
 
     fn maybe_parse_table_sample(&mut self) -> Result<Option<Box<TableSample>>, ParserError> {

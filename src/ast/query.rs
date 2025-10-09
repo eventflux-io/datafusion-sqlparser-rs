@@ -3794,3 +3794,19 @@ impl fmt::Display for StreamingWindowSpec {
         }
     }
 }
+
+/// Partition key specification for PARTITION WITH clause
+/// Represents: attribute OF stream_name
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub struct PartitionKey {
+    pub attribute: Ident,
+    pub stream_name: ObjectName,
+}
+
+impl fmt::Display for PartitionKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} OF {}", self.attribute, self.stream_name)
+    }
+}

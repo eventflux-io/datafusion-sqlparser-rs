@@ -82,7 +82,7 @@ pub use self::query::{
     JsonTableNestedColumn, LateralView, LimitClause, LockClause, LockType, MatchRecognizePattern,
     MatchRecognizeSymbol, Measure, NamedWindowDefinition, NamedWindowExpr, NonBlock, Offset,
     OffsetRows, OpenJsonTableColumn, OrderBy, OrderByExpr, OrderByKind, OrderByOptions,
-    PipeOperator, PivotValueSource, ProjectionSelect, Query, RenameSelectItem,
+    PartitionKey, PipeOperator, PivotValueSource, ProjectionSelect, Query, RenameSelectItem,
     RepetitionQuantifier, ReplaceSelectElement, ReplaceSelectItem, RowsPerMatch, Select,
     SelectFlavor, SelectInto, SelectItem, SelectItemQualifiedWildcardKind, SetExpr, SetOperator,
     SetQuantifier, Setting, StreamingWindowSpec, SymbolDefinition, Table, TableAlias, TableAliasColumnDef, TableFactor,
@@ -4326,6 +4326,20 @@ pub enum Statement {
     /// ```
     /// [Redshift](https://docs.aws.amazon.com/redshift/latest/dg/r_VACUUM_command.html)
     Vacuum(VacuumStatement),
+    /// EventFlux PARTITION statement for parallel processing
+    ///
+    /// ```sql
+    /// PARTITION WITH (symbol OF StockStream)
+    /// BEGIN
+    ///     SELECT symbol, AVG(price) FROM StockStream GROUP BY symbol;
+    /// END;
+    /// ```
+    Partition {
+        /// Partition keys: attribute OF stream_name
+        partition_keys: Vec<PartitionKey>,
+        /// Statements within the partition block
+        body: Vec<Statement>,
+    },
 }
 
 /// ```sql
@@ -6193,6 +6207,15 @@ impl fmt::Display for Statement {
             Statement::AlterSchema(s) => write!(f, "{s}"),
             Statement::Vacuum(s) => write!(f, "{s}"),
             Statement::AlterUser(s) => write!(f, "{s}"),
+            Statement::Partition { partition_keys, body } => {
+                write!(f, "PARTITION WITH (")?;
+                write!(f, "{}", display_comma_separated(partition_keys))?;
+                write!(f, ") BEGIN")?;
+                for stmt in body {
+                    write!(f, " {}", stmt)?;
+                }
+                write!(f, " END")
+            }
         }
     }
 }
