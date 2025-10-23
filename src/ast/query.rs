@@ -3773,6 +3773,8 @@ pub enum StreamingWindowSpec {
     ExternalTime { timestamp_field: Expr, duration: Expr },
     /// External time batch window: WINDOW('externalTimeBatch', timestamp, 1000)
     ExternalTimeBatch { timestamp_field: Expr, duration: Expr },
+    /// Sort window: WINDOW('sort', 100, attr1, 'asc', ...) - maintains events in sorted order
+    Sort { parameters: Vec<Expr> },
 }
 
 impl fmt::Display for StreamingWindowSpec {
@@ -3790,6 +3792,13 @@ impl fmt::Display for StreamingWindowSpec {
             }
             StreamingWindowSpec::ExternalTimeBatch { timestamp_field, duration } => {
                 write!(f, "WINDOW('externalTimeBatch', {}, {})", timestamp_field, duration)
+            }
+            StreamingWindowSpec::Sort { parameters } => {
+                write!(f, "WINDOW('sort'")?;
+                for param in parameters {
+                    write!(f, ", {}", param)?;
+                }
+                write!(f, ")")
             }
         }
     }

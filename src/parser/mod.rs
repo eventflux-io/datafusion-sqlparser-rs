@@ -13965,9 +13965,19 @@ impl<'a> Parser<'a> {
                     duration,
                 }
             }
+            "sort" => {
+                // Collect all remaining parameters (size, attr1, 'asc', attr2, 'desc', ...)
+                let mut parameters = vec![self.parse_expr()?];
+
+                while self.consume_token(&Token::Comma) {
+                    parameters.push(self.parse_expr()?);
+                }
+
+                StreamingWindowSpec::Sort { parameters }
+            }
             _ => {
                 return self.expected(
-                    "valid streaming window type (tumbling, sliding, length, session, time, timebatch, lengthbatch, externaltime, externaltimebatch)",
+                    "valid streaming window type (tumbling, sliding, length, session, time, timebatch, lengthbatch, externaltime, externaltimebatch, sort)",
                     self.peek_token(),
                 )
             }
