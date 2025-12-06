@@ -353,6 +353,7 @@ define_keywords!(
     ESCAPED,
     ESTIMATE,
     EVENT,
+    EVENTS,
     EVERY,
     EVOLVE,
     EXCEPT,

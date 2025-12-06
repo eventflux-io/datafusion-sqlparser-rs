@@ -13595,6 +13595,12 @@ impl<'a> Parser<'a> {
             self.expect_token(&Token::RParen)?;
             let alias = self.maybe_parse_table_alias()?;
             Ok(TableFactor::TableFunction { expr, alias })
+        } else if self.parse_keyword(Keyword::PATTERN) {
+            // EventFlux: FROM PATTERN (pattern_expression) [WITHIN constraint] [AS alias]
+            self.parse_pattern_table_factor(PatternMode::Pattern)
+        } else if self.parse_keyword(Keyword::SEQUENCE) {
+            // EventFlux: FROM SEQUENCE (pattern_expression) [WITHIN constraint] [AS alias]
+            self.parse_pattern_table_factor(PatternMode::Sequence)
         } else if self.consume_token(&Token::LParen) {
             // A left paren introduces either a derived table (i.e., a subquery)
             // or a nested join. It's nearly impossible to determine ahead of
@@ -13685,6 +13691,7 @@ impl<'a> Parser<'a> {
                         | TableFactor::Unpivot { alias, .. }
                         | TableFactor::MatchRecognize { alias, .. }
                         | TableFactor::SemanticView { alias, .. }
+                        | TableFactor::Pattern { alias, .. }
                         | TableFactor::NestedJoin { alias, .. } => {
                             // but not `FROM (mytable AS alias1) AS alias2`.
                             if let Some(inner_alias) = alias {
@@ -14701,6 +14708,329 @@ impl<'a> Parser<'a> {
             subquery,
             alias,
         })
+    }
+
+    // =========================================================================
+    // EventFlux: CEP Pattern/Sequence Parsing
+    // =========================================================================
+
+    /// Parse PATTERN or SEQUENCE table factor
+    ///
+    /// Syntax:
+    /// ```sql
+    /// FROM PATTERN (pattern_expression) [WITHIN constraint] [AS alias]
+    /// FROM SEQUENCE (pattern_expression) [WITHIN constraint] [AS alias]
+    /// ```
+    pub fn parse_pattern_table_factor(
+        &mut self,
+        mode: PatternMode,
+    ) -> Result<TableFactor, ParserError> {
+        // Expect opening parenthesis for pattern expression
+        self.expect_token(&Token::LParen)?;
+
+        // Parse the pattern expression
+        let pattern = self.parse_pattern_expression()?;
+
+        // Expect closing parenthesis
+        self.expect_token(&Token::RParen)?;
+
+        // Optional WITHIN constraint
+        let within = if self.parse_keyword(Keyword::WITHIN) {
+            Some(self.parse_within_constraint()?)
+        } else {
+            None
+        };
+
+        // Optional alias
+        let alias = self.maybe_parse_table_alias()?;
+
+        Ok(TableFactor::Pattern {
+            mode,
+            pattern,
+            within,
+            alias,
+        })
+    }
+
+    /// Parse pattern expression (recursive)
+    ///
+    /// Grammar:
+    /// ```text
+    /// pattern_expression ::= pattern_term (('->' | 'AND' | 'OR') pattern_term)*
+    /// pattern_term       ::= [EVERY] pattern_primary ['{' count '}']
+    /// pattern_primary    ::= stream_pattern | '(' pattern_expression ')'
+    /// stream_pattern     ::= [alias '='] stream_name ['[' filter ']']
+    /// ```
+    fn parse_pattern_expression(&mut self) -> Result<PatternExpression, ParserError> {
+        // Parse left-hand side (may be EVERY, grouped, or stream)
+        let mut left = self.parse_pattern_term()?;
+
+        // Parse sequence (->), AND, or OR operators
+        loop {
+            if self.consume_token(&Token::Arrow) {
+                // Sequence operator: A -> B
+                let right = self.parse_pattern_term()?;
+                left = PatternExpression::Sequence {
+                    first: Box::new(left),
+                    second: Box::new(right),
+                };
+            } else if self.parse_keyword(Keyword::AND) {
+                // Logical AND: A AND B
+                let right = self.parse_pattern_term()?;
+                left = PatternExpression::Logical {
+                    left: Box::new(left),
+                    op: PatternLogicalOp::And,
+                    right: Box::new(right),
+                };
+            } else if self.parse_keyword(Keyword::OR) {
+                // Logical OR: A OR B
+                let right = self.parse_pattern_term()?;
+                left = PatternExpression::Logical {
+                    left: Box::new(left),
+                    op: PatternLogicalOp::Or,
+                    right: Box::new(right),
+                };
+            } else {
+                break;
+            }
+        }
+
+        Ok(left)
+    }
+
+    /// Parse a pattern term: [EVERY] pattern_primary ['{' count '}'] ['[' filter ']']
+    ///
+    /// Note: Count quantifier comes BEFORE filter, e.g., `A{2,3}[price > 100]`
+    fn parse_pattern_term(&mut self) -> Result<PatternExpression, ParserError> {
+        // Check for EVERY keyword
+        let is_every = self.parse_keyword(Keyword::EVERY);
+
+        // Parse the primary pattern (stream or grouped, but NOT filter yet if count follows)
+        let primary = self.parse_pattern_primary_without_filter()?;
+
+        // Wrap in EVERY if needed
+        let term = if is_every {
+            PatternExpression::Every {
+                pattern: Box::new(primary),
+            }
+        } else {
+            primary
+        };
+
+        // Check for count quantifier: {n} or {n,m}
+        let term = if self.consume_token(&Token::LBrace) {
+            let min_count = self.parse_literal_uint()? as u32;
+
+            let max_count = if self.consume_token(&Token::Comma) {
+                self.parse_literal_uint()? as u32
+            } else {
+                min_count // Exact count: {3} means {3,3}
+            };
+
+            self.expect_token(&Token::RBrace)?;
+
+            PatternExpression::Count {
+                pattern: Box::new(term),
+                min_count,
+                max_count,
+            }
+        } else {
+            term
+        };
+
+        // Now check for filter after count quantifier: [expression]
+        // This allows: A{2,3}[filter] as well as A[filter]
+        if let PatternExpression::Count { pattern, min_count, max_count } = term {
+            // If there's a count, check for filter after it
+            if self.consume_token(&Token::LBracket) {
+                let filter_expr = self.parse_expr()?;
+                self.expect_token(&Token::RBracket)?;
+
+                // Unwrap the stream inside and add filter to it
+                if let PatternExpression::Stream { alias, stream_name, filter: _ } = *pattern {
+                    return Ok(PatternExpression::Count {
+                        pattern: Box::new(PatternExpression::Stream {
+                            alias,
+                            stream_name,
+                            filter: Some(Box::new(filter_expr)),
+                        }),
+                        min_count,
+                        max_count,
+                    });
+                }
+            }
+            Ok(PatternExpression::Count { pattern, min_count, max_count })
+        } else if let PatternExpression::Stream { alias, stream_name, filter: None } = &term {
+            // No count, but check for filter on plain stream
+            if self.consume_token(&Token::LBracket) {
+                let filter_expr = self.parse_expr()?;
+                self.expect_token(&Token::RBracket)?;
+                return Ok(PatternExpression::Stream {
+                    alias: alias.clone(),
+                    stream_name: stream_name.clone(),
+                    filter: Some(Box::new(filter_expr)),
+                });
+            }
+            Ok(term)
+        } else if let PatternExpression::Every { pattern } = term {
+            // EVERY wrapping - need to check for filter on inner pattern
+            if let PatternExpression::Stream { alias, stream_name, filter: None } = *pattern {
+                if self.consume_token(&Token::LBracket) {
+                    let filter_expr = self.parse_expr()?;
+                    self.expect_token(&Token::RBracket)?;
+                    return Ok(PatternExpression::Every {
+                        pattern: Box::new(PatternExpression::Stream {
+                            alias,
+                            stream_name,
+                            filter: Some(Box::new(filter_expr)),
+                        }),
+                    });
+                }
+                Ok(PatternExpression::Every {
+                    pattern: Box::new(PatternExpression::Stream {
+                        alias,
+                        stream_name,
+                        filter: None,
+                    }),
+                })
+            } else {
+                Ok(PatternExpression::Every { pattern })
+            }
+        } else {
+            Ok(term)
+        }
+    }
+
+    /// Parse a primary pattern without filter: stream_pattern | '(' pattern_expression ')' | NOT stream FOR duration
+    ///
+    /// Filter is parsed separately in parse_pattern_term to handle A{2,3}[filter] correctly
+    fn parse_pattern_primary_without_filter(&mut self) -> Result<PatternExpression, ParserError> {
+        // Check for grouped expression
+        if self.consume_token(&Token::LParen) {
+            let inner = self.parse_pattern_expression()?;
+            self.expect_token(&Token::RParen)?;
+            return Ok(PatternExpression::Grouped {
+                pattern: Box::new(inner),
+            });
+        }
+
+        // Check for NOT (absent pattern)
+        if self.parse_keyword(Keyword::NOT) {
+            let stream_name = self.parse_object_name(false)?;
+            self.expect_keyword(Keyword::FOR)?;
+            let duration = self.parse_expr()?;
+            return Ok(PatternExpression::Absent {
+                stream_name,
+                duration: Box::new(duration),
+            });
+        }
+
+        // Parse stream pattern WITHOUT filter (filter is handled in parse_pattern_term)
+        self.parse_stream_pattern_without_filter()
+    }
+
+    /// Parse a primary pattern: stream_pattern | '(' pattern_expression ')' | NOT stream FOR duration
+    #[allow(dead_code)]
+    fn parse_pattern_primary(&mut self) -> Result<PatternExpression, ParserError> {
+        // Check for grouped expression
+        if self.consume_token(&Token::LParen) {
+            let inner = self.parse_pattern_expression()?;
+            self.expect_token(&Token::RParen)?;
+            return Ok(PatternExpression::Grouped {
+                pattern: Box::new(inner),
+            });
+        }
+
+        // Check for NOT (absent pattern)
+        if self.parse_keyword(Keyword::NOT) {
+            let stream_name = self.parse_object_name(false)?;
+            self.expect_keyword(Keyword::FOR)?;
+            let duration = self.parse_expr()?;
+            return Ok(PatternExpression::Absent {
+                stream_name,
+                duration: Box::new(duration),
+            });
+        }
+
+        // Parse stream pattern: [alias =] stream_name [filter]
+        self.parse_stream_pattern()
+    }
+
+    /// Parse a stream pattern WITHOUT filter: [alias '='] stream_name
+    fn parse_stream_pattern_without_filter(&mut self) -> Result<PatternExpression, ParserError> {
+        let first_ident = self.parse_identifier()?;
+
+        let (alias, stream_name) = if self.consume_token(&Token::Eq) {
+            let stream_name = self.parse_object_name(false)?;
+            (Some(first_ident), stream_name)
+        } else {
+            (None, ObjectName(vec![ObjectNamePart::Identifier(first_ident)]))
+        };
+
+        Ok(PatternExpression::Stream {
+            alias,
+            stream_name,
+            filter: None,
+        })
+    }
+
+    /// Parse a stream pattern: [alias '='] stream_name ['[' filter ']']
+    #[allow(dead_code)]
+    fn parse_stream_pattern(&mut self) -> Result<PatternExpression, ParserError> {
+        // Try to parse alias = stream_name format
+        // We need to lookahead to check if there's an '=' after the identifier
+        let first_ident = self.parse_identifier()?;
+
+        let (alias, stream_name) = if self.consume_token(&Token::Eq) {
+            // alias = stream_name
+            let stream_name = self.parse_object_name(false)?;
+            (Some(first_ident), stream_name)
+        } else {
+            // Just stream_name (no alias)
+            (None, ObjectName(vec![ObjectNamePart::Identifier(first_ident)]))
+        };
+
+        // Parse optional filter: [expression]
+        let filter = if self.consume_token(&Token::LBracket) {
+            let filter_expr = self.parse_expr()?;
+            self.expect_token(&Token::RBracket)?;
+            Some(Box::new(filter_expr))
+        } else {
+            None
+        };
+
+        Ok(PatternExpression::Stream {
+            alias,
+            stream_name,
+            filter,
+        })
+    }
+
+    /// Parse WITHIN constraint: WITHIN duration | WITHIN n EVENTS
+    ///
+    /// Syntax:
+    /// - `WITHIN 100 EVENTS` - Event count constraint
+    /// - `WITHIN INTERVAL '10' SECOND` - Time constraint
+    /// - `WITHIN 5000` - Time in milliseconds (numeric literal)
+    fn parse_within_constraint(&mut self) -> Result<WithinConstraint, ParserError> {
+        // Try to parse "n EVENTS" pattern using lookahead
+        if let Token::Number(_, _) = self.peek_token().token {
+            // Use maybe_parse to try event count, rewind if it fails
+            if let Some(constraint) = self.maybe_parse(|parser| {
+                let count = parser.parse_literal_uint()?;
+                if parser.parse_keyword(Keyword::EVENTS) {
+                    Ok(WithinConstraint::EventCount(count))
+                } else {
+                    Err(ParserError::ParserError("Not an event count".to_string()))
+                }
+            })? {
+                return Ok(constraint);
+            }
+        }
+
+        // Time-based constraint: parse as expression (INTERVAL or numeric)
+        let time_expr = self.parse_expr()?;
+        Ok(WithinConstraint::Time(Box::new(time_expr)))
     }
 
     fn parse_aliased_function_call(&mut self) -> Result<ExprWithAlias, ParserError> {

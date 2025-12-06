@@ -1440,6 +1440,25 @@ pub enum TableFactor {
         /// The alias for the table
         alias: Option<TableAlias>,
     },
+    /// EventFlux: CEP Pattern/Sequence matching
+    ///
+    /// ```sql
+    /// FROM PATTERN (e1=A -> e2=B) WITHIN INTERVAL '10' SECOND
+    /// FROM SEQUENCE (e1=A -> e2=B{2,5})
+    /// ```
+    ///
+    /// Pattern mode (PATTERN) allows gaps between events, while SEQUENCE
+    /// requires strict consecutive matching.
+    Pattern {
+        /// PATTERN (relaxed) or SEQUENCE (strict consecutive)
+        mode: PatternMode,
+        /// The pattern expression tree
+        pattern: PatternExpression,
+        /// Optional WITHIN constraint
+        within: Option<WithinConstraint>,
+        /// Optional alias for the pattern source
+        alias: Option<TableAlias>,
+    },
 }
 
 /// The table sample modifier options
@@ -2178,6 +2197,21 @@ impl fmt::Display for TableFactor {
                     write!(f, " AS {alias}")?;
                 }
 
+                Ok(())
+            }
+            TableFactor::Pattern {
+                mode,
+                pattern,
+                within,
+                alias,
+            } => {
+                write!(f, "{} ({})", mode, pattern)?;
+                if let Some(w) = within {
+                    write!(f, " {}", w)?;
+                }
+                if let Some(a) = alias {
+                    write!(f, " AS {}", a)?;
+                }
                 Ok(())
             }
         }
@@ -3817,5 +3851,246 @@ pub struct PartitionKey {
 impl fmt::Display for PartitionKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} OF {}", self.attribute, self.stream_name)
+    }
+}
+
+// ============================================================================
+// EventFlux Pattern Processing AST Types
+// ============================================================================
+
+/// Pattern matching mode: PATTERN (relaxed) vs SEQUENCE (strict)
+///
+/// - `Pattern`: Relaxed matching - ignores non-matching events, keeps pending states
+/// - `Sequence`: Strict consecutive matching - fails on non-matching events
+///
+/// Example:
+/// ```sql
+/// FROM PATTERN (e1=A -> e2=B)  -- Allows gaps between A and B
+/// FROM SEQUENCE (e1=A -> e2=B) -- Requires A immediately followed by B
+/// ```
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum PatternMode {
+    /// Relaxed matching - ignores non-matching events
+    Pattern,
+    /// Strict consecutive matching - fails on gaps
+    Sequence,
+}
+
+impl fmt::Display for PatternMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PatternMode::Pattern => write!(f, "PATTERN"),
+            PatternMode::Sequence => write!(f, "SEQUENCE"),
+        }
+    }
+}
+
+/// Logical operators for combining pattern elements
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum PatternLogicalOp {
+    And,
+    Or,
+}
+
+impl fmt::Display for PatternLogicalOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PatternLogicalOp::And => write!(f, "AND"),
+            PatternLogicalOp::Or => write!(f, "OR"),
+        }
+    }
+}
+
+/// Pattern expression AST node
+///
+/// Represents the recursive structure of CEP pattern expressions.
+///
+/// Grammar:
+/// ```text
+/// pattern_expression ::= stream_pattern
+///                      | count_pattern
+///                      | sequence_pattern
+///                      | logical_pattern
+///                      | every_pattern
+///                      | absent_pattern
+///                      | grouped_pattern
+/// ```
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum PatternExpression {
+    /// Basic stream reference: `e1=StreamName` or `e1=StreamName[filter]`
+    Stream {
+        /// Event alias (e.g., "e1", "e2")
+        alias: Option<Ident>,
+        /// Stream name
+        stream_name: ObjectName,
+        /// Optional filter condition: `[price > 100]`
+        filter: Option<Box<Expr>>,
+    },
+
+    /// Count quantifier: `A{3}` or `A{2,5}`
+    Count {
+        /// Inner pattern to count
+        pattern: Box<PatternExpression>,
+        /// Minimum count (must be >= 1)
+        min_count: u32,
+        /// Maximum count (must be explicit, no unbounded)
+        max_count: u32,
+    },
+
+    /// Sequence operator: `A -> B -> C`
+    Sequence {
+        /// First pattern in sequence
+        first: Box<PatternExpression>,
+        /// Second pattern in sequence
+        second: Box<PatternExpression>,
+    },
+
+    /// Logical combination: `A AND B` or `A OR B`
+    Logical {
+        /// Left operand
+        left: Box<PatternExpression>,
+        /// Operator (AND or OR)
+        op: PatternLogicalOp,
+        /// Right operand
+        right: Box<PatternExpression>,
+    },
+
+    /// EVERY pattern: `EVERY (A -> B)`
+    /// Only allowed in PATTERN mode, only at top level
+    Every {
+        /// Inner pattern to repeat
+        pattern: Box<PatternExpression>,
+    },
+
+    /// Absent pattern: `NOT StreamName FOR duration`
+    Absent {
+        /// Stream that should NOT occur
+        stream_name: ObjectName,
+        /// Duration for which stream should be absent
+        duration: Box<Expr>,
+    },
+
+    /// Grouped pattern: `(A -> B)`
+    Grouped {
+        /// Inner pattern
+        pattern: Box<PatternExpression>,
+    },
+}
+
+impl fmt::Display for PatternExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PatternExpression::Stream { alias, stream_name, filter } => {
+                if let Some(a) = alias {
+                    write!(f, "{}={}", a, stream_name)?;
+                } else {
+                    write!(f, "{}", stream_name)?;
+                }
+                if let Some(flt) = filter {
+                    write!(f, "[{}]", flt)?;
+                }
+                Ok(())
+            }
+            PatternExpression::Count { pattern, min_count, max_count } => {
+                write!(f, "{}", pattern)?;
+                if min_count == max_count {
+                    write!(f, "{{{}}}", min_count)
+                } else {
+                    write!(f, "{{{},{}}}", min_count, max_count)
+                }
+            }
+            PatternExpression::Sequence { first, second } => {
+                write!(f, "{} -> {}", first, second)
+            }
+            PatternExpression::Logical { left, op, right } => {
+                write!(f, "{} {} {}", left, op, right)
+            }
+            PatternExpression::Every { pattern } => {
+                write!(f, "EVERY ({})", pattern)
+            }
+            PatternExpression::Absent { stream_name, duration } => {
+                write!(f, "NOT {} FOR {}", stream_name, duration)
+            }
+            PatternExpression::Grouped { pattern } => {
+                write!(f, "({})", pattern)
+            }
+        }
+    }
+}
+
+/// WITHIN constraint for pattern matching
+///
+/// - Time-based: `WITHIN 10 minutes`
+/// - Event-count: `WITHIN 100 EVENTS`
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum WithinConstraint {
+    /// Time-based constraint: `WITHIN 10 minutes`
+    Time(Box<Expr>),
+    /// Event-count constraint: `WITHIN 100 EVENTS`
+    EventCount(u64),
+}
+
+impl fmt::Display for WithinConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            WithinConstraint::Time(expr) => write!(f, "WITHIN {}", expr),
+            WithinConstraint::EventCount(count) => write!(f, "WITHIN {} EVENTS", count),
+        }
+    }
+}
+
+/// Output event type for pattern INSERT statements
+///
+/// Controls which events are emitted from pattern matching:
+/// - `CurrentEvents`: Only new matches (default)
+/// - `ExpiredEvents`: Only expired/timed-out patterns
+/// - `AllEvents`: Both matches and expirations
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum PatternOutputType {
+    /// Default: only emit on pattern match
+    CurrentEvents,
+    /// Only emit on pattern expiration/timeout
+    ExpiredEvents,
+    /// Emit both matches and expirations
+    AllEvents,
+}
+
+impl fmt::Display for PatternOutputType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PatternOutputType::CurrentEvents => write!(f, "CURRENT EVENTS"),
+            PatternOutputType::ExpiredEvents => write!(f, "EXPIRED EVENTS"),
+            PatternOutputType::AllEvents => write!(f, "ALL EVENTS"),
+        }
+    }
+}
+
+/// Array index for pattern event collections: `e[0]`, `e[last]`
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum PatternArrayIndex {
+    /// Numeric index: `e[0]`, `e[1]`, `e[2]`
+    Numeric(u32),
+    /// Last element: `e[last]`
+    Last,
+}
+
+impl fmt::Display for PatternArrayIndex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PatternArrayIndex::Numeric(n) => write!(f, "{}", n),
+            PatternArrayIndex::Last => write!(f, "last"),
+        }
     }
 }

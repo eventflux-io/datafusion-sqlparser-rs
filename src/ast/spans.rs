@@ -2002,6 +2002,7 @@ impl Spanned for TableFactor {
                     .chain(alias.as_ref().map(|a| a.span())),
             ),
             TableFactor::OpenJsonTable { .. } => Span::empty(),
+            TableFactor::Pattern { .. } => Span::empty(),
         }
     }
 }
