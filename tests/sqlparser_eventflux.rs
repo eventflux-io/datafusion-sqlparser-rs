@@ -1051,8 +1051,9 @@ fn test_parse_pattern_sequence_with_filters() {
 // ============================================================================
 
 #[test]
-fn test_parse_pattern_within_interval() {
-    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN INTERVAL '10' SECOND";
+fn test_parse_pattern_within_seconds() {
+    // WITHIN with time unit (converted to milliseconds internally)
+    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN 10 SECONDS";
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
@@ -1060,20 +1061,20 @@ fn test_parse_pattern_within_interval() {
             match within {
                 Some(WithinConstraint::Time(expr)) => {
                     let expr_str = expr.to_string();
-                    assert!(expr_str.contains("INTERVAL"), "Should contain INTERVAL: {}", expr_str);
-                    assert!(expr_str.contains("10"), "Should contain '10': {}", expr_str);
+                    // 10 seconds = 10000 milliseconds
+                    assert_eq!(expr_str, "10000", "10 SECONDS should be 10000ms: {}", expr_str);
                 }
                 _ => panic!("Expected WITHIN Time constraint, got {:?}", within),
             }
         }
-        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_interval"),
+        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_seconds"),
     }
 }
 
 #[test]
-fn test_parse_pattern_within_numeric_time() {
-    // WITHIN with a plain numeric value (milliseconds)
-    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN 5000";
+fn test_parse_pattern_within_milliseconds() {
+    // WITHIN with milliseconds (stays as-is)
+    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN 5000 MILLISECONDS";
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
@@ -1081,18 +1082,19 @@ fn test_parse_pattern_within_numeric_time() {
             match within {
                 Some(WithinConstraint::Time(expr)) => {
                     let expr_str = expr.to_string();
-                    assert_eq!(expr_str, "5000", "Should be numeric time: {}", expr_str);
+                    assert_eq!(expr_str, "5000", "5000 MILLISECONDS should be 5000ms: {}", expr_str);
                 }
                 _ => panic!("Expected WITHIN Time constraint"),
             }
         }
-        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_numeric_time"),
+        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_milliseconds"),
     }
 }
 
 #[test]
-fn test_parse_pattern_within_interval_minute() {
-    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN INTERVAL '5' MINUTE";
+fn test_parse_pattern_within_minutes() {
+    // WITHIN with minutes (converted to milliseconds)
+    let sql = "SELECT * FROM PATTERN (e1=A -> e2=B) WITHIN 5 MINUTES";
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
@@ -1100,12 +1102,13 @@ fn test_parse_pattern_within_interval_minute() {
             match within {
                 Some(WithinConstraint::Time(expr)) => {
                     let expr_str = expr.to_string();
-                    assert!(expr_str.contains("MINUTE"), "Should contain MINUTE: {}", expr_str);
+                    // 5 minutes = 300000 milliseconds
+                    assert_eq!(expr_str, "300000", "5 MINUTES should be 300000ms: {}", expr_str);
                 }
                 _ => panic!("Expected WITHIN Time constraint"),
             }
         }
-        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_interval_minute"),
+        _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_minutes"),
     }
 }
 

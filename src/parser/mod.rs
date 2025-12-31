@@ -5672,10 +5672,9 @@ impl<'a> Parser<'a> {
         let timing = if self.parse_keyword(Keyword::START) {
             StreamTriggerTiming::Start
         } else if self.parse_keyword(Keyword::EVERY) {
-            // Parse: EVERY <number> <time_unit>
-            let value = self.parse_literal_uint()?;
-            let unit = self.parse_stream_trigger_time_unit()?;
-            StreamTriggerTiming::Every { value, unit }
+            // Parse: EVERY <number> <time_unit> using same mechanism as windows/WITHIN
+            let interval_ms = self.parse_streaming_time_duration_ms()?;
+            StreamTriggerTiming::Every { interval_ms }
         } else if self.parse_keyword(Keyword::CRON) {
             // Parse: CRON '<expr>'
             let cron_expr = self.parse_literal_string()?;
@@ -5687,26 +5686,30 @@ impl<'a> Parser<'a> {
         Ok(Statement::CreateStreamTrigger(CreateStreamTrigger { name, timing }))
     }
 
-    /// Parse time unit for streaming triggers
-    fn parse_stream_trigger_time_unit(&mut self) -> Result<StreamTriggerTimeUnit, ParserError> {
-        use crate::ast::StreamTriggerTimeUnit;
+    /// Parse streaming time duration: <value> <time_unit>
+    /// Returns the duration in milliseconds as u64
+    /// Example: "5 SECONDS" -> 5000
+    ///
+    /// This is the core time parsing function used by triggers, windows, and WITHIN clauses.
+    fn parse_streaming_time_duration_ms(&mut self) -> Result<u64, ParserError> {
+        let value = self.parse_literal_uint()?;
+        let unit = self.parse_date_time_field()?;
+        unit.to_millis(value).ok_or_else(|| {
+            ParserError::ParserError(format!(
+                "Time unit {} cannot be converted to milliseconds (variable-length unit)",
+                unit
+            ))
+        })
+    }
 
-        if self.parse_keyword(Keyword::MILLISECOND) || self.parse_keyword(Keyword::MILLISECONDS) {
-            Ok(StreamTriggerTimeUnit::Milliseconds)
-        } else if self.parse_keyword(Keyword::SECOND) || self.parse_keyword(Keyword::SECONDS) {
-            Ok(StreamTriggerTimeUnit::Seconds)
-        } else if self.parse_keyword(Keyword::MINUTE) || self.parse_keyword(Keyword::MINUTES) {
-            Ok(StreamTriggerTimeUnit::Minutes)
-        } else if self.parse_keyword(Keyword::HOUR) || self.parse_keyword(Keyword::HOURS) {
-            Ok(StreamTriggerTimeUnit::Hours)
-        } else if self.parse_keyword(Keyword::DAY) || self.parse_keyword(Keyword::DAYS) {
-            Ok(StreamTriggerTimeUnit::Days)
-        } else {
-            self.expected(
-                "MILLISECONDS, SECONDS, MINUTES, HOURS, or DAYS",
-                self.peek_token(),
-            )
-        }
+    /// Parse streaming time duration: <value> <time_unit>
+    /// Returns an Expr containing the duration in milliseconds
+    /// Example: "5 SECONDS" -> Expr::Value(Number("5000"))
+    ///
+    /// Used by window specifications and WITHIN clauses that need an Expr.
+    fn parse_streaming_time_duration(&mut self) -> Result<Expr, ParserError> {
+        let millis = self.parse_streaming_time_duration_ms()?;
+        Ok(Expr::Value(Value::Number(millis.to_string(), false).into()))
     }
 
     pub fn parse_trigger_period(&mut self) -> Result<TriggerPeriod, ParserError> {
@@ -13960,11 +13963,18 @@ impl<'a> Parser<'a> {
             }
 
             // EventFlux: Parse streaming WINDOW clause if present
-            if self.parse_keyword(Keyword::WINDOW) {
-                let window_spec = self.parse_streaming_window_spec()?;
-                if let TableFactor::Table { window, .. } = &mut table {
-                    *window = Some(window_spec);
+            // Only parse as streaming window if WINDOW is followed by '(' (our syntax)
+            // Standard SQL named window clauses use: WINDOW window_name AS (...)
+            if self.peek_keyword(Keyword::WINDOW) {
+                // Check if next token after WINDOW is '(' (streaming window syntax)
+                if self.peek_nth_token(1).token == Token::LParen {
+                    self.expect_keyword(Keyword::WINDOW)?;
+                    let window_spec = self.parse_streaming_window_spec()?;
+                    if let TableFactor::Table { window, .. } = &mut table {
+                        *window = Some(window_spec);
+                    }
                 }
+                // Otherwise, don't consume WINDOW - it's for the SELECT's named window clause
             }
 
             Ok(table)
@@ -13983,48 +13993,57 @@ impl<'a> Parser<'a> {
 
         let spec = match window_type.to_lowercase().as_str() {
             "tumbling" => {
-                let duration = self.parse_expr()?;
+                // Time-based: parse duration with time unit
+                let duration = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::Tumbling { duration }
             }
             "sliding" | "hop" => {
-                let size = self.parse_expr()?;
+                // Time-based: parse size and slide with time units
+                let size = self.parse_streaming_time_duration()?;
                 self.expect_token(&Token::Comma)?;
-                let slide = self.parse_expr()?;
+                let slide = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::Sliding { size, slide }
             }
             "length" => {
+                // Count-based: parse as numeric expression
                 let size = self.parse_expr()?;
                 StreamingWindowSpec::Length { size }
             }
             "session" => {
-                let gap = self.parse_expr()?;
+                // Time-based: parse gap with time unit
+                let gap = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::Session { gap }
             }
             "time" => {
-                let duration = self.parse_expr()?;
+                // Time-based: parse duration with time unit
+                let duration = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::Time { duration }
             }
             "timebatch" => {
-                let duration = self.parse_expr()?;
+                // Time-based: parse duration with time unit
+                let duration = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::TimeBatch { duration }
             }
             "lengthbatch" => {
+                // Count-based: parse as numeric expression
                 let size = self.parse_expr()?;
                 StreamingWindowSpec::LengthBatch { size }
             }
             "externaltime" => {
+                // First param is timestamp field (identifier), second is time duration
                 let timestamp_field = self.parse_expr()?;
                 self.expect_token(&Token::Comma)?;
-                let duration = self.parse_expr()?;
+                let duration = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::ExternalTime {
                     timestamp_field,
                     duration,
                 }
             }
             "externaltimebatch" => {
+                // First param is timestamp field (identifier), second is time duration
                 let timestamp_field = self.parse_expr()?;
                 self.expect_token(&Token::Comma)?;
-                let duration = self.parse_expr()?;
+                let duration = self.parse_streaming_time_duration()?;
                 StreamingWindowSpec::ExternalTimeBatch {
                     timestamp_field,
                     duration,
@@ -15068,12 +15087,11 @@ impl<'a> Parser<'a> {
     ///
     /// Syntax:
     /// - `WITHIN 100 EVENTS` - Event count constraint
-    /// - `WITHIN INTERVAL '10' SECOND` - Time constraint
-    /// - `WITHIN 5000` - Time in milliseconds (numeric literal)
+    /// - `WITHIN 10 SECONDS` - Time constraint using standard time units
     fn parse_within_constraint(&mut self) -> Result<WithinConstraint, ParserError> {
-        // Try to parse "n EVENTS" pattern using lookahead
+        // Must start with a number
         if let Token::Number(_, _) = self.peek_token().token {
-            // Use maybe_parse to try event count, rewind if it fails
+            // Try to parse "n EVENTS" pattern using lookahead
             if let Some(constraint) = self.maybe_parse(|parser| {
                 let count = parser.parse_literal_uint()?;
                 if parser.parse_keyword(Keyword::EVENTS) {
@@ -15084,11 +15102,15 @@ impl<'a> Parser<'a> {
             })? {
                 return Ok(constraint);
             }
+
+            // Time-based constraint: parse as "value UNIT" (e.g., "10 SECONDS")
+            let time_expr = self.parse_streaming_time_duration()?;
+            return Ok(WithinConstraint::Time(Box::new(time_expr)));
         }
 
-        // Time-based constraint: parse as expression (INTERVAL or numeric)
-        let time_expr = self.parse_expr()?;
-        Ok(WithinConstraint::Time(Box::new(time_expr)))
+        Err(ParserError::ParserError(
+            "WITHIN requires a numeric value followed by EVENTS or a time unit (e.g., WITHIN 10 SECONDS)".to_string()
+        ))
     }
 
     fn parse_aliased_function_call(&mut self) -> Result<ExprWithAlias, ParserError> {

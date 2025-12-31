@@ -32,13 +32,14 @@ use crate::ast::value::escape_single_quote_string;
 use crate::ast::{
     display_comma_separated, display_separated, table_constraints::TableConstraint, ArgMode,
     CommentDef, ConditionalStatements, CreateFunctionBody, CreateFunctionUsing,
-    CreateTableLikeKind, CreateTableOptions, DataType, Expr, FileFormat, FunctionBehavior,
-    FunctionCalledOnNull, FunctionDeterminismSpecifier, FunctionParallel, HiveDistributionStyle,
-    HiveFormat, HiveIOFormat, HiveRowFormat, Ident, InitializeKind, MySQLColumnPosition,
-    ObjectName, OnCommit, OneOrManyWithParens, OperateFunctionArg, OrderByExpr, ProjectionSelect,
-    Query, RefreshModeKind, RowAccessPolicy, SequenceOptions, Spanned, SqlOption,
-    StorageSerializationPolicy, TableVersion, Tag, TriggerEvent, TriggerExecBody, TriggerObject,
-    TriggerPeriod, TriggerReferencing, Value, ValueWithSpan, WrappedCollection,
+    CreateTableLikeKind, CreateTableOptions, DataType, Expr, FileFormat,
+    FunctionBehavior, FunctionCalledOnNull, FunctionDeterminismSpecifier, FunctionParallel,
+    HiveDistributionStyle, HiveFormat, HiveIOFormat, HiveRowFormat, Ident, InitializeKind,
+    MySQLColumnPosition, ObjectName, OnCommit, OneOrManyWithParens, OperateFunctionArg,
+    OrderByExpr, ProjectionSelect, Query, RefreshModeKind, RowAccessPolicy, SequenceOptions,
+    Spanned, SqlOption, StorageSerializationPolicy, TableVersion, Tag, TriggerEvent,
+    TriggerExecBody, TriggerObject, TriggerPeriod, TriggerReferencing, Value, ValueWithSpan,
+    WrappedCollection,
 };
 use crate::display_utils::{DisplayCommaSeparated, Indent, NewLine, SpaceOrNewline};
 use crate::keywords::Keyword;
@@ -3110,15 +3111,14 @@ pub enum StreamTriggerTiming {
     /// CREATE TRIGGER StartTrigger AT START;
     /// ```
     Start,
-    /// Fires at regular intervals
+    /// Fires at regular intervals (interval stored as milliseconds)
     /// ```sql
     /// CREATE TRIGGER PeriodicTrigger AT EVERY 5 SECONDS;
     /// ```
+    /// The interval is converted to milliseconds at parse time using `parse_streaming_time_duration()`.
     Every {
-        /// The interval value
-        value: u64,
-        /// The time unit
-        unit: StreamTriggerTimeUnit,
+        /// The interval in milliseconds (pre-computed from value + time unit)
+        interval_ms: u64,
     },
     /// Fires according to a cron schedule
     /// ```sql
@@ -3131,48 +3131,14 @@ impl fmt::Display for StreamTriggerTiming {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             StreamTriggerTiming::Start => write!(f, "START"),
-            StreamTriggerTiming::Every { value, unit } => write!(f, "EVERY {} {}", value, unit),
+            StreamTriggerTiming::Every { interval_ms } => {
+                write!(f, "EVERY {} MILLISECONDS", interval_ms)
+            }
             StreamTriggerTiming::Cron(expr) => write!(f, "CRON '{}'", expr),
         }
     }
 }
 
-/// Time units for EventFlux streaming trigger intervals
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
-pub enum StreamTriggerTimeUnit {
-    Milliseconds,
-    Seconds,
-    Minutes,
-    Hours,
-    Days,
-}
-
-impl StreamTriggerTimeUnit {
-    /// Convert value with this unit to milliseconds
-    pub fn to_millis(&self, value: u64) -> u64 {
-        match self {
-            StreamTriggerTimeUnit::Milliseconds => value,
-            StreamTriggerTimeUnit::Seconds => value * 1_000,
-            StreamTriggerTimeUnit::Minutes => value * 60_000,
-            StreamTriggerTimeUnit::Hours => value * 3_600_000,
-            StreamTriggerTimeUnit::Days => value * 86_400_000,
-        }
-    }
-}
-
-impl fmt::Display for StreamTriggerTimeUnit {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            StreamTriggerTimeUnit::Milliseconds => write!(f, "MILLISECONDS"),
-            StreamTriggerTimeUnit::Seconds => write!(f, "SECONDS"),
-            StreamTriggerTimeUnit::Minutes => write!(f, "MINUTES"),
-            StreamTriggerTimeUnit::Hours => write!(f, "HOURS"),
-            StreamTriggerTimeUnit::Days => write!(f, "DAYS"),
-        }
-    }
-}
 
 /// EventFlux streaming trigger definition
 ///

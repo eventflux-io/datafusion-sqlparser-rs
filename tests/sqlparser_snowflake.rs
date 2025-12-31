@@ -3927,6 +3927,7 @@ fn test_nested_join_without_parentheses() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
+                window: None,
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -3947,6 +3948,7 @@ fn test_nested_join_without_parentheses() {
                             json_path: None,
                             sample: None,
                             index_hints: vec![],
+                window: None,
                         },
                         global: false,
                         join_operator: JoinOperator::Inner(JoinConstraint::On(Expr::BinaryOp {
@@ -4008,6 +4010,7 @@ fn test_nested_join_without_parentheses() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
+                window: None,
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -4028,6 +4031,7 @@ fn test_nested_join_without_parentheses() {
                             json_path: None,
                             sample: None,
                             index_hints: vec![],
+                window: None,
                         },
                         global: false,
                         join_operator: JoinOperator::Join(JoinConstraint::On(Expr::BinaryOp {
@@ -4089,6 +4093,7 @@ fn test_nested_join_without_parentheses() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
+                window: None,
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -4109,6 +4114,7 @@ fn test_nested_join_without_parentheses() {
                             json_path: None,
                             sample: None,
                             index_hints: vec![],
+                window: None,
                         },
                         global: false,
                         join_operator: JoinOperator::Left(JoinConstraint::On(Expr::BinaryOp {
@@ -4170,6 +4176,7 @@ fn test_nested_join_without_parentheses() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
+                window: None,
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -4190,6 +4197,7 @@ fn test_nested_join_without_parentheses() {
                             json_path: None,
                             sample: None,
                             index_hints: vec![],
+                window: None,
                         },
                         global: false,
                         join_operator: JoinOperator::Right(JoinConstraint::On(Expr::BinaryOp {
@@ -4251,6 +4259,7 @@ fn test_nested_join_without_parentheses() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
+                window: None,
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -4271,6 +4280,7 @@ fn test_nested_join_without_parentheses() {
                             json_path: None,
                             sample: None,
                             index_hints: vec![],
+                window: None,
                         },
                         global: false,
                         join_operator: JoinOperator::FullOuter(JoinConstraint::On(

@@ -66,7 +66,7 @@ pub use self::ddl::{
     ColumnPolicy, ColumnPolicyProperty, ConstraintCharacteristics, CreateConnector, CreateDomain,
     CreateFunction, CreateIndex, CreateStreamTrigger, CreateTable, CreateTrigger, Deduplicate,
     DeferrableInitial, DropBehavior, DropTrigger, GeneratedAs, GeneratedExpressionMode,
-    IdentityParameters, StreamTriggerTimeUnit, StreamTriggerTiming,
+    IdentityParameters, StreamTriggerTiming,
     IdentityProperty, IdentityPropertyFormatKind, IdentityPropertyKind, IdentityPropertyOrder,
     IndexColumn, IndexOption, IndexType, KeyOrIndexDisplay, NullsDistinctOption, Owner, Partition,
     ProcedureParam, ReferentialAction, RenameTableNameKind, ReplicaIdentity, TagsColumnOption,

@@ -399,6 +399,26 @@ impl fmt::Display for DateTimeField {
     }
 }
 
+impl DateTimeField {
+    /// Convert a value with this time unit to milliseconds.
+    /// Returns `None` for time units that cannot be converted to a fixed millisecond value
+    /// (e.g., Year, Month which have variable lengths).
+    pub fn to_millis(&self, value: u64) -> Option<u64> {
+        match self {
+            DateTimeField::Nanosecond | DateTimeField::Nanoseconds => Some(value / 1_000_000),
+            DateTimeField::Microsecond | DateTimeField::Microseconds => Some(value / 1_000),
+            DateTimeField::Millisecond | DateTimeField::Milliseconds => Some(value),
+            DateTimeField::Second | DateTimeField::Seconds => Some(value * 1_000),
+            DateTimeField::Minute | DateTimeField::Minutes => Some(value * 60_000),
+            DateTimeField::Hour | DateTimeField::Hours => Some(value * 3_600_000),
+            DateTimeField::Day | DateTimeField::Days => Some(value * 86_400_000),
+            DateTimeField::Week(_) | DateTimeField::Weeks => Some(value * 604_800_000),
+            // Variable-length units cannot be converted to fixed milliseconds
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]

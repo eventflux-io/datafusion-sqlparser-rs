@@ -1443,7 +1443,7 @@ pub enum TableFactor {
     /// EventFlux: CEP Pattern/Sequence matching
     ///
     /// ```sql
-    /// FROM PATTERN (e1=A -> e2=B) WITHIN INTERVAL '10' SECOND
+    /// FROM PATTERN (e1=A -> e2=B) WITHIN 10 SECONDS
     /// FROM SEQUENCE (e1=A -> e2=B{2,5})
     /// ```
     ///
@@ -3789,23 +3789,23 @@ impl fmt::Display for XmlNamespaceDefinition {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub enum StreamingWindowSpec {
-    /// Tumbling time window: WINDOW('tumbling', INTERVAL '5' SECOND)
+    /// Tumbling time window: WINDOW('tumbling', 5 SECONDS)
     Tumbling { duration: Expr },
-    /// Sliding/Hopping window: WINDOW('sliding', INTERVAL '1' HOUR, INTERVAL '15' MINUTE)
+    /// Sliding/Hopping window: WINDOW('sliding', 1 HOUR, 15 MINUTES)
     Sliding { size: Expr, slide: Expr },
     /// Length-based window: WINDOW('length', 100)
     Length { size: Expr },
-    /// Session window: WINDOW('session', INTERVAL '10' MINUTE)
+    /// Session window: WINDOW('session', 10 MINUTES)
     Session { gap: Expr },
-    /// Time window: WINDOW('time', 1000)
+    /// Time window: WINDOW('time', 1 SECOND)
     Time { duration: Expr },
-    /// Time batch window: WINDOW('timeBatch', 5000)
+    /// Time batch window: WINDOW('timeBatch', 5 SECONDS)
     TimeBatch { duration: Expr },
     /// Length batch window: WINDOW('lengthBatch', 50)
     LengthBatch { size: Expr },
-    /// External time window: WINDOW('externalTime', timestamp, 1000)
+    /// External time window: WINDOW('externalTime', timestamp, 1 SECOND)
     ExternalTime { timestamp_field: Expr, duration: Expr },
-    /// External time batch window: WINDOW('externalTimeBatch', timestamp, 1000)
+    /// External time batch window: WINDOW('externalTimeBatch', timestamp, 1 SECOND)
     ExternalTimeBatch { timestamp_field: Expr, duration: Expr },
     /// Sort window: WINDOW('sort', 100, attr1, 'asc', ...) - maintains events in sorted order
     Sort { parameters: Vec<Expr> },
@@ -4026,13 +4026,13 @@ impl fmt::Display for PatternExpression {
 
 /// WITHIN constraint for pattern matching
 ///
-/// - Time-based: `WITHIN 10 minutes`
+/// - Time-based: `WITHIN 10 MINUTES`
 /// - Event-count: `WITHIN 100 EVENTS`
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub enum WithinConstraint {
-    /// Time-based constraint: `WITHIN 10 minutes`
+    /// Time-based constraint: `WITHIN 10 MINUTES`
     Time(Box<Expr>),
     /// Event-count constraint: `WITHIN 100 EVENTS`
     EventCount(u64),
