@@ -5587,6 +5587,12 @@ impl<'a> Parser<'a> {
         }
 
         let name = self.parse_object_name(false)?;
+
+        // Check for EventFlux streaming trigger syntax: CREATE TRIGGER name AT ...
+        if self.parse_keyword(Keyword::AT) {
+            return self.parse_stream_trigger_timing(name);
+        }
+
         let period = self.parse_trigger_period()?;
 
         let events = self.parse_keyword_separated(Keyword::OR, Parser::parse_trigger_event)?;
@@ -5649,6 +5655,58 @@ impl<'a> Parser<'a> {
             statements,
             characteristics,
         }))
+    }
+
+    /// Parse EventFlux streaming trigger timing after AT keyword
+    ///
+    /// Supports:
+    /// - `AT START` - fires once at application start
+    /// - `AT EVERY <n> <unit>` - fires at regular intervals
+    /// - `AT CRON '<expr>'` - fires according to cron schedule
+    fn parse_stream_trigger_timing(
+        &mut self,
+        name: ObjectName,
+    ) -> Result<Statement, ParserError> {
+        use crate::ast::{CreateStreamTrigger, StreamTriggerTiming};
+
+        let timing = if self.parse_keyword(Keyword::START) {
+            StreamTriggerTiming::Start
+        } else if self.parse_keyword(Keyword::EVERY) {
+            // Parse: EVERY <number> <time_unit>
+            let value = self.parse_literal_uint()?;
+            let unit = self.parse_stream_trigger_time_unit()?;
+            StreamTriggerTiming::Every { value, unit }
+        } else if self.parse_keyword(Keyword::CRON) {
+            // Parse: CRON '<expr>'
+            let cron_expr = self.parse_literal_string()?;
+            StreamTriggerTiming::Cron(cron_expr)
+        } else {
+            return self.expected("START, EVERY, or CRON after AT", self.peek_token());
+        };
+
+        Ok(Statement::CreateStreamTrigger(CreateStreamTrigger { name, timing }))
+    }
+
+    /// Parse time unit for streaming triggers
+    fn parse_stream_trigger_time_unit(&mut self) -> Result<StreamTriggerTimeUnit, ParserError> {
+        use crate::ast::StreamTriggerTimeUnit;
+
+        if self.parse_keyword(Keyword::MILLISECOND) || self.parse_keyword(Keyword::MILLISECONDS) {
+            Ok(StreamTriggerTimeUnit::Milliseconds)
+        } else if self.parse_keyword(Keyword::SECOND) || self.parse_keyword(Keyword::SECONDS) {
+            Ok(StreamTriggerTimeUnit::Seconds)
+        } else if self.parse_keyword(Keyword::MINUTE) || self.parse_keyword(Keyword::MINUTES) {
+            Ok(StreamTriggerTimeUnit::Minutes)
+        } else if self.parse_keyword(Keyword::HOUR) || self.parse_keyword(Keyword::HOURS) {
+            Ok(StreamTriggerTimeUnit::Hours)
+        } else if self.parse_keyword(Keyword::DAY) || self.parse_keyword(Keyword::DAYS) {
+            Ok(StreamTriggerTimeUnit::Days)
+        } else {
+            self.expected(
+                "MILLISECONDS, SECONDS, MINUTES, HOURS, or DAYS",
+                self.peek_token(),
+            )
+        }
     }
 
     pub fn parse_trigger_period(&mut self) -> Result<TriggerPeriod, ParserError> {

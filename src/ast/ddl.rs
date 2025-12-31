@@ -3096,6 +3096,117 @@ impl Display for CreateTrigger {
     }
 }
 
+// ============================================================================
+// EventFlux Streaming Trigger Types
+// ============================================================================
+
+/// Timing specification for EventFlux streaming triggers
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum StreamTriggerTiming {
+    /// Fires once at application start
+    /// ```sql
+    /// CREATE TRIGGER StartTrigger AT START;
+    /// ```
+    Start,
+    /// Fires at regular intervals
+    /// ```sql
+    /// CREATE TRIGGER PeriodicTrigger AT EVERY 5 SECONDS;
+    /// ```
+    Every {
+        /// The interval value
+        value: u64,
+        /// The time unit
+        unit: StreamTriggerTimeUnit,
+    },
+    /// Fires according to a cron schedule
+    /// ```sql
+    /// CREATE TRIGGER CronTrigger AT CRON '*/1 * * * * *';
+    /// ```
+    Cron(String),
+}
+
+impl fmt::Display for StreamTriggerTiming {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StreamTriggerTiming::Start => write!(f, "START"),
+            StreamTriggerTiming::Every { value, unit } => write!(f, "EVERY {} {}", value, unit),
+            StreamTriggerTiming::Cron(expr) => write!(f, "CRON '{}'", expr),
+        }
+    }
+}
+
+/// Time units for EventFlux streaming trigger intervals
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum StreamTriggerTimeUnit {
+    Milliseconds,
+    Seconds,
+    Minutes,
+    Hours,
+    Days,
+}
+
+impl StreamTriggerTimeUnit {
+    /// Convert value with this unit to milliseconds
+    pub fn to_millis(&self, value: u64) -> u64 {
+        match self {
+            StreamTriggerTimeUnit::Milliseconds => value,
+            StreamTriggerTimeUnit::Seconds => value * 1_000,
+            StreamTriggerTimeUnit::Minutes => value * 60_000,
+            StreamTriggerTimeUnit::Hours => value * 3_600_000,
+            StreamTriggerTimeUnit::Days => value * 86_400_000,
+        }
+    }
+}
+
+impl fmt::Display for StreamTriggerTimeUnit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StreamTriggerTimeUnit::Milliseconds => write!(f, "MILLISECONDS"),
+            StreamTriggerTimeUnit::Seconds => write!(f, "SECONDS"),
+            StreamTriggerTimeUnit::Minutes => write!(f, "MINUTES"),
+            StreamTriggerTimeUnit::Hours => write!(f, "HOURS"),
+            StreamTriggerTimeUnit::Days => write!(f, "DAYS"),
+        }
+    }
+}
+
+/// EventFlux streaming trigger definition
+///
+/// Used for CEP time-based event generation:
+/// - Start triggers fire once at application start
+/// - Periodic triggers fire at regular intervals
+/// - Cron triggers fire according to a cron schedule
+///
+/// ```sql
+/// -- Start trigger
+/// CREATE TRIGGER StartTrigger AT START;
+///
+/// -- Periodic trigger
+/// CREATE TRIGGER FiveSecTrigger AT EVERY 5 SECONDS;
+///
+/// -- Cron trigger
+/// CREATE TRIGGER CronTrigger AT CRON '*/1 * * * * *';
+/// ```
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub struct CreateStreamTrigger {
+    /// The name of the trigger
+    pub name: ObjectName,
+    /// The timing specification (START, EVERY, or CRON)
+    pub timing: StreamTriggerTiming,
+}
+
+impl fmt::Display for CreateStreamTrigger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CREATE TRIGGER {} AT {}", self.name, self.timing)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]

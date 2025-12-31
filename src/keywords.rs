@@ -239,6 +239,7 @@ define_keywords!(
     CREATEDB,
     CREATEROLE,
     CREDENTIALS,
+    CRON,
     CROSS,
     CSV,
     CUBE,

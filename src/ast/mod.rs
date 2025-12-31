@@ -64,8 +64,9 @@ pub use self::ddl::{
     AlterType, AlterTypeAddValue, AlterTypeAddValuePosition, AlterTypeOperation, AlterTypeRename,
     AlterTypeRenameValue, ClusteredBy, ColumnDef, ColumnOption, ColumnOptionDef, ColumnOptions,
     ColumnPolicy, ColumnPolicyProperty, ConstraintCharacteristics, CreateConnector, CreateDomain,
-    CreateFunction, CreateIndex, CreateTable, CreateTrigger, Deduplicate, DeferrableInitial,
-    DropBehavior, DropTrigger, GeneratedAs, GeneratedExpressionMode, IdentityParameters,
+    CreateFunction, CreateIndex, CreateStreamTrigger, CreateTable, CreateTrigger, Deduplicate,
+    DeferrableInitial, DropBehavior, DropTrigger, GeneratedAs, GeneratedExpressionMode,
+    IdentityParameters, StreamTriggerTimeUnit, StreamTriggerTiming,
     IdentityProperty, IdentityPropertyFormatKind, IdentityPropertyKind, IdentityPropertyOrder,
     IndexColumn, IndexOption, IndexType, KeyOrIndexDisplay, NullsDistinctOption, Owner, Partition,
     ProcedureParam, ReferentialAction, RenameTableNameKind, ReplicaIdentity, TagsColumnOption,
@@ -3915,6 +3916,14 @@ pub enum Statement {
     CreateFunction(CreateFunction),
     /// CREATE TRIGGER statement. See struct [CreateTrigger] for details.
     CreateTrigger(CreateTrigger),
+    /// CREATE TRIGGER for EventFlux streaming. See struct [CreateStreamTrigger] for details.
+    ///
+    /// ```sql
+    /// CREATE TRIGGER StartTrigger AT START;
+    /// CREATE TRIGGER PeriodicTrigger AT EVERY 5 SECONDS;
+    /// CREATE TRIGGER CronTrigger AT CRON '*/1 * * * * *';
+    /// ```
+    CreateStreamTrigger(CreateStreamTrigger),
     /// DROP TRIGGER statement. See struct [DropTrigger] for details.
     DropTrigger(DropTrigger),
     /// ```sql
@@ -4899,6 +4908,7 @@ impl fmt::Display for Statement {
             Statement::CreateFunction(create_function) => create_function.fmt(f),
             Statement::CreateDomain(create_domain) => create_domain.fmt(f),
             Statement::CreateTrigger(create_trigger) => create_trigger.fmt(f),
+            Statement::CreateStreamTrigger(stream_trigger) => stream_trigger.fmt(f),
             Statement::DropTrigger(drop_trigger) => drop_trigger.fmt(f),
             Statement::CreateProcedure {
                 name,
@@ -11081,6 +11091,12 @@ impl From<CreateFunction> for Statement {
 impl From<CreateTrigger> for Statement {
     fn from(c: CreateTrigger) -> Self {
         Self::CreateTrigger(c)
+    }
+}
+
+impl From<CreateStreamTrigger> for Statement {
+    fn from(c: CreateStreamTrigger) -> Self {
+        Self::CreateStreamTrigger(c)
     }
 }
 
