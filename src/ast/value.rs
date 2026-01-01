@@ -402,11 +402,15 @@ impl fmt::Display for DateTimeField {
 impl DateTimeField {
     /// Convert a value with this time unit to milliseconds.
     /// Returns `None` for time units that cannot be converted to a fixed millisecond value
-    /// (e.g., Year, Month which have variable lengths).
+    /// (e.g., Year, Month which have variable lengths, or sub-millisecond units like
+    /// Nanoseconds/Microseconds which are not supported - milliseconds is the minimum precision).
     pub fn to_millis(&self, value: u64) -> Option<u64> {
         match self {
-            DateTimeField::Nanosecond | DateTimeField::Nanoseconds => Some(value / 1_000_000),
-            DateTimeField::Microsecond | DateTimeField::Microseconds => Some(value / 1_000),
+            // Sub-millisecond units are not supported - milliseconds is the minimum precision
+            DateTimeField::Nanosecond
+            | DateTimeField::Nanoseconds
+            | DateTimeField::Microsecond
+            | DateTimeField::Microseconds => None,
             DateTimeField::Millisecond | DateTimeField::Milliseconds => Some(value),
             DateTimeField::Second | DateTimeField::Seconds => Some(value * 1_000),
             DateTimeField::Minute | DateTimeField::Minutes => Some(value * 60_000),
