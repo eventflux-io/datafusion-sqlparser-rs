@@ -589,6 +589,7 @@ impl<'a> Parser<'a> {
                 Keyword::FETCH => self.parse_fetch_statement(),
                 Keyword::DELETE => self.parse_delete(),
                 Keyword::INSERT => self.parse_insert(),
+                Keyword::UPSERT => self.parse_upsert(),
                 Keyword::REPLACE => self.parse_replace(),
                 Keyword::UNCACHE => self.parse_uncache_table(),
                 Keyword::UPDATE => self.parse_update(),
@@ -16169,6 +16170,37 @@ impl<'a> Parser<'a> {
         } else {
             Ok(None)
         }
+    }
+
+    /// Parse EventFlux-specific UPSERT statement
+    ///
+    /// Syntax: UPSERT INTO table SELECT ... FROM stream ON condition
+    ///
+    /// Example:
+    /// ```sql
+    /// UPSERT INTO stockTable
+    /// SELECT symbol, price, volume
+    /// FROM stockStream
+    /// ON stockTable.symbol = stockStream.symbol;
+    /// ```
+    pub fn parse_upsert(&mut self) -> Result<Statement, ParserError> {
+        // Parse: UPSERT INTO <table>
+        self.expect_keyword(Keyword::INTO)?;
+        let table = self.parse_object_name(false)?;
+
+        // Parse: SELECT ... FROM stream (this is the source query)
+        // parse_query() already returns Box<Query>
+        let source = self.parse_query()?;
+
+        // Parse: ON <condition>
+        self.expect_keyword(Keyword::ON)?;
+        let on_condition = self.parse_expr()?;
+
+        Ok(Statement::Upsert {
+            table,
+            source,
+            on_condition,
+        })
     }
 
     pub fn parse_load_data_table_format(

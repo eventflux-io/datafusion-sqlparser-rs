@@ -1033,6 +1033,7 @@ define_keywords!(
     UNTIL,
     UPDATE,
     UPPER,
+    UPSERT,
     URL,
     USAGE,
     USE,

@@ -3133,6 +3133,18 @@ pub enum Statement {
     /// ```
     Insert(Insert),
     /// ```sql
+    /// UPSERT INTO table SELECT ... FROM stream ON condition
+    /// ```
+    /// EventFlux-specific UPSERT statement with boolean ON condition
+    Upsert {
+        /// Target table to upsert into
+        table: ObjectName,
+        /// Source query (SELECT ... FROM stream)
+        source: Box<Query>,
+        /// ON condition - boolean expression for matching
+        on_condition: Expr,
+    },
+    /// ```sql
     /// INSTALL
     /// ```
     Install {
@@ -4701,6 +4713,13 @@ impl fmt::Display for Statement {
                 Ok(())
             }
             Statement::Insert(insert) => insert.fmt(f),
+            Statement::Upsert {
+                table,
+                source,
+                on_condition,
+            } => {
+                write!(f, "UPSERT INTO {table} {source} ON {on_condition}")
+            }
             Statement::Install {
                 extension_name: name,
             } => write!(f, "INSTALL {name}"),

@@ -332,6 +332,16 @@ impl Spanned for Statement {
             } => table_name.span(),
             Statement::Query(query) => query.span(),
             Statement::Insert(insert) => insert.span(),
+            Statement::Upsert {
+                table,
+                source,
+                on_condition,
+            } => union_spans(
+                table.0.iter().map(|i| i.span()).chain(
+                    core::iter::once(source.span())
+                        .chain(core::iter::once(on_condition.span())),
+                ),
+            ),
             Statement::Install { extension_name } => extension_name.span,
             Statement::Load { extension_name } => extension_name.span,
             Statement::Directory {
