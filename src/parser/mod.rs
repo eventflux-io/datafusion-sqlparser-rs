@@ -11957,6 +11957,7 @@ impl<'a> Parser<'a> {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             }
             .into())
         } else if self.parse_keyword(Keyword::UPDATE) {
@@ -11971,6 +11972,7 @@ impl<'a> Parser<'a> {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             }
             .into())
         } else if self.parse_keyword(Keyword::DELETE) {
@@ -11985,6 +11987,7 @@ impl<'a> Parser<'a> {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             }
             .into())
         } else if self.parse_keyword(Keyword::MERGE) {
@@ -11999,6 +12002,7 @@ impl<'a> Parser<'a> {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             }
             .into())
         } else {
@@ -12045,6 +12049,9 @@ impl<'a> Parser<'a> {
                 Vec::new()
             };
 
+            // EventFlux: Parse OUTPUT rate limiting clause
+            let output_rate_limit = self.parse_output_rate_limit()?;
+
             Ok(Query {
                 with,
                 body,
@@ -12056,6 +12063,7 @@ impl<'a> Parser<'a> {
                 settings,
                 format_clause,
                 pipe_operators,
+                output_rate_limit,
             }
             .into())
         }
@@ -13807,6 +13815,7 @@ impl<'a> Parser<'a> {
                     settings: None,
                     format_clause: None,
                     pipe_operators: vec![],
+                    output_rate_limit: None,
                 }),
                 alias,
             })
@@ -14070,6 +14079,70 @@ impl<'a> Parser<'a> {
 
         self.expect_token(&Token::RParen)?;
         Ok(spec)
+    }
+
+    /// EventFlux: Parse OUTPUT rate limiting clause
+    /// Syntax: OUTPUT [SNAPSHOT|ALL|FIRST|LAST] EVERY <value> [EVENTS|<time_unit>]
+    ///
+    /// Examples:
+    /// - OUTPUT ALL EVERY 3 EVENTS
+    /// - OUTPUT FIRST EVERY 500 MILLISECONDS
+    /// - OUTPUT SNAPSHOT EVERY 1 SECOND
+    fn parse_output_rate_limit(&mut self) -> Result<Option<OutputRateLimit>, ParserError> {
+        // Check for OUTPUT keyword
+        if !self.parse_keyword(Keyword::OUTPUT) {
+            return Ok(None);
+        }
+
+        // Parse mode: SNAPSHOT | ALL | FIRST | LAST
+        let mode = if self.parse_keyword(Keyword::SNAPSHOT) {
+            OutputRateLimitMode::Snapshot
+        } else if self.parse_keyword(Keyword::ALL) {
+            OutputRateLimitMode::All
+        } else if self.parse_keyword(Keyword::FIRST) {
+            OutputRateLimitMode::First
+        } else if self.parse_keyword(Keyword::LAST) {
+            OutputRateLimitMode::Last
+        } else {
+            return self.expected(
+                "SNAPSHOT, ALL, FIRST, or LAST after OUTPUT",
+                self.peek_token(),
+            );
+        };
+
+        // Expect EVERY keyword
+        self.expect_keyword(Keyword::EVERY)?;
+
+        // Parse the value (integer)
+        let value = self.parse_literal_uint()?;
+
+        // Parse unit: EVENTS or time unit
+        let unit = if self.parse_keyword(Keyword::EVENTS) {
+            OutputRateLimitUnit::Events
+        } else if self.parse_keyword(Keyword::MILLISECONDS) {
+            OutputRateLimitUnit::Milliseconds
+        } else if self.parse_keyword(Keyword::SECONDS) {
+            OutputRateLimitUnit::Seconds
+        } else if self.parse_keyword(Keyword::MINUTES) {
+            OutputRateLimitUnit::Minutes
+        } else if self.parse_keyword(Keyword::HOURS) {
+            OutputRateLimitUnit::Hours
+        } else {
+            return self.expected(
+                "EVENTS, MILLISECONDS, SECONDS, MINUTES, or HOURS after value",
+                self.peek_token(),
+            );
+        };
+
+        // Validate: SNAPSHOT only with time-based units
+        if mode == OutputRateLimitMode::Snapshot && unit == OutputRateLimitUnit::Events {
+            return Err(ParserError::ParserError(
+                "OUTPUT SNAPSHOT must use time units (MILLISECONDS, SECONDS, etc.), not EVENTS"
+                    .to_string(),
+            ));
+        }
+
+        Ok(Some(OutputRateLimit { mode, value, unit }))
     }
 
     /// Parse PARTITION statement (EventFlux streaming partitions)

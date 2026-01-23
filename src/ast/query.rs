@@ -66,6 +66,10 @@ pub struct Query {
 
     /// Pipe operator
     pub pipe_operators: Vec<PipeOperator>,
+
+    /// EventFlux: Output rate limiting
+    /// Syntax: OUTPUT [SNAPSHOT|ALL|FIRST|LAST] EVERY <value> [EVENTS|<time_unit>]
+    pub output_rate_limit: Option<OutputRateLimit>,
 }
 
 impl fmt::Display for Query {
@@ -106,6 +110,10 @@ impl fmt::Display for Query {
         for pipe_operator in &self.pipe_operators {
             f.write_str(" |> ")?;
             pipe_operator.fmt(f)?;
+        }
+        if let Some(ref output_rate_limit) = self.output_rate_limit {
+            f.write_str(" ")?;
+            output_rate_limit.fmt(f)?;
         }
         Ok(())
     }
@@ -3835,6 +3843,109 @@ impl fmt::Display for StreamingWindowSpec {
                 write!(f, ")")
             }
         }
+    }
+}
+
+// ============================================================================
+// EventFlux Output Rate Limiting
+// ============================================================================
+
+/// EventFlux: Output rate limiting mode
+/// Controls which events are emitted at rate intervals
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum OutputRateLimitMode {
+    /// Emit all buffered events at each interval
+    All,
+    /// Emit only the first event of each interval
+    First,
+    /// Emit only the last event of each interval
+    Last,
+    /// Emit a snapshot of current state (for windowed queries)
+    Snapshot,
+}
+
+impl fmt::Display for OutputRateLimitMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputRateLimitMode::All => write!(f, "ALL"),
+            OutputRateLimitMode::First => write!(f, "FIRST"),
+            OutputRateLimitMode::Last => write!(f, "LAST"),
+            OutputRateLimitMode::Snapshot => write!(f, "SNAPSHOT"),
+        }
+    }
+}
+
+/// EventFlux: Output rate limiting unit
+/// Specifies whether rate limiting is event-based or time-based
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum OutputRateLimitUnit {
+    /// Event count based: OUTPUT ALL EVERY 3 EVENTS
+    Events,
+    /// Time based in milliseconds
+    Milliseconds,
+    /// Time based in seconds
+    Seconds,
+    /// Time based in minutes
+    Minutes,
+    /// Time based in hours
+    Hours,
+}
+
+impl OutputRateLimitUnit {
+    /// Convert the value to milliseconds for time-based units.
+    /// Returns None if:
+    /// - The unit is Events (not a time unit)
+    /// - The multiplication would overflow u64
+    pub fn to_millis(&self, value: u64) -> Option<u64> {
+        match self {
+            OutputRateLimitUnit::Events => None, // Not a time unit
+            OutputRateLimitUnit::Milliseconds => Some(value),
+            OutputRateLimitUnit::Seconds => value.checked_mul(1000),
+            OutputRateLimitUnit::Minutes => value.checked_mul(60_000),
+            OutputRateLimitUnit::Hours => value.checked_mul(3_600_000),
+        }
+    }
+}
+
+impl fmt::Display for OutputRateLimitUnit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputRateLimitUnit::Events => write!(f, "EVENTS"),
+            OutputRateLimitUnit::Milliseconds => write!(f, "MILLISECONDS"),
+            OutputRateLimitUnit::Seconds => write!(f, "SECONDS"),
+            OutputRateLimitUnit::Minutes => write!(f, "MINUTES"),
+            OutputRateLimitUnit::Hours => write!(f, "HOURS"),
+        }
+    }
+}
+
+/// EventFlux: Output rate limiting specification
+/// Syntax: OUTPUT [SNAPSHOT|ALL|FIRST|LAST] EVERY <value> [EVENTS|<time_unit>]
+///
+/// Examples:
+/// - `OUTPUT ALL EVERY 3 EVENTS` - Emit all events every 3 input events
+/// - `OUTPUT FIRST EVERY 5 EVENTS` - Emit first event of every 5-event batch
+/// - `OUTPUT LAST EVERY 1 SECOND` - Emit last event every second
+/// - `OUTPUT SNAPSHOT EVERY 500 MILLISECONDS` - Emit current state every 500ms
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub struct OutputRateLimit {
+    /// Rate limit mode: ALL, FIRST, LAST, or SNAPSHOT
+    pub mode: OutputRateLimitMode,
+    /// The rate value (event count or time duration number)
+    pub value: u64,
+    /// The unit: EVENTS or a time unit
+    pub unit: OutputRateLimitUnit,
+}
+
+impl fmt::Display for OutputRateLimit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "OUTPUT {} EVERY {} {}", self.mode, self.value, self.unit)
     }
 }
 

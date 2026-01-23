@@ -2688,6 +2688,7 @@ fn test_export_data() {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             })
         })
     );
@@ -2792,6 +2793,7 @@ fn test_export_data() {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             })
         })
     );

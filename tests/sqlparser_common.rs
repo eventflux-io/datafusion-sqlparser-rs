@@ -494,6 +494,7 @@ fn parse_update_set_from() {
                         settings: None,
                         format_clause: None,
                         pipe_operators: vec![],
+                        output_rate_limit: None,
                     }),
                     alias: Some(TableAlias {
                         name: Ident::new("t2"),
@@ -4398,6 +4399,7 @@ fn parse_create_table_as_table() {
         settings: None,
         format_clause: None,
         pipe_operators: vec![],
+        output_rate_limit: None,
     });
 
     match verified_stmt(sql1) {
@@ -4424,6 +4426,7 @@ fn parse_create_table_as_table() {
         settings: None,
         format_clause: None,
         pipe_operators: vec![],
+        output_rate_limit: None,
     });
 
     match verified_stmt(sql2) {
@@ -6499,6 +6502,7 @@ fn parse_interval_and_or_xor() {
         settings: None,
         format_clause: None,
         pipe_operators: vec![],
+        output_rate_limit: None,
     }))];
 
     assert_eq!(actual_ast, expected_ast);
@@ -9835,6 +9839,7 @@ fn parse_merge() {
                         settings: None,
                         format_clause: None,
                         pipe_operators: vec![],
+                        output_rate_limit: None,
                     }),
                     alias: Some(TableAlias {
                         name: Ident {
@@ -11985,6 +11990,7 @@ fn parse_unload() {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
+                output_rate_limit: None,
             })),
             to: Ident {
                 value: "s3://...".to_string(),
@@ -13315,6 +13321,7 @@ fn test_extract_seconds_ok() {
         settings: None,
         format_clause: None,
         pipe_operators: vec![],
+        output_rate_limit: None,
     }))];
 
     assert_eq!(actual_ast, expected_ast);
@@ -15399,6 +15406,7 @@ fn test_select_from_first() {
             settings: None,
             format_clause: None,
             pipe_operators: vec![],
+            output_rate_limit: None,
         };
         assert_eq!(expected, ast);
         assert_eq!(ast.to_string(), q);

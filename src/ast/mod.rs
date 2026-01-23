@@ -88,6 +88,7 @@ pub use self::query::{
     RepetitionQuantifier, ReplaceSelectElement, ReplaceSelectItem, RowsPerMatch, Select,
     SelectFlavor, SelectInto, SelectItem, SelectItemQualifiedWildcardKind, SetExpr, SetOperator,
     SetQuantifier, Setting, StreamingWindowSpec, SymbolDefinition, Table, TableAlias, TableAliasColumnDef, TableFactor,
+    OutputRateLimit, OutputRateLimitMode, OutputRateLimitUnit,
     WithinConstraint,
     TableFunctionArgs, TableIndexHintForClause, TableIndexHintType, TableIndexHints,
     TableIndexType, TableSample, TableSampleBucket, TableSampleKind, TableSampleMethod,

@@ -102,11 +102,12 @@ impl Spanned for Query {
             order_by,
             limit_clause,
             fetch,
-            locks: _,          // todo
-            for_clause: _,     // todo, mssql specific
-            settings: _,       // todo, clickhouse specific
-            format_clause: _,  // todo, clickhouse specific
-            pipe_operators: _, // todo bigquery specific
+            locks: _,              // todo
+            for_clause: _,         // todo, mssql specific
+            settings: _,           // todo, clickhouse specific
+            format_clause: _,      // todo, clickhouse specific
+            pipe_operators: _,     // todo bigquery specific
+            output_rate_limit: _,  // eventflux specific
         } = self;
 
         union_spans(

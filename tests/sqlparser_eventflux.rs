@@ -1255,3 +1255,164 @@ fn test_parse_pattern_logical_with_sequence() {
         _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_logical_with_sequence"),
     }
 }
+
+// ============================================================================
+// Output Rate Limiting Tests
+// ============================================================================
+
+use sqlparser::ast::{OutputRateLimit, OutputRateLimitMode, OutputRateLimitUnit};
+
+fn parse_output_rate_query(sql: &str) -> sqlparser::ast::Query {
+    let dialect = sqlparser::dialect::GenericDialect {};
+    let mut parser = sqlparser::parser::Parser::new(&dialect).try_with_sql(sql).unwrap();
+    *parser.parse_query().unwrap()
+}
+
+#[test]
+fn test_output_rate_limit_mode_display() {
+    assert_eq!(OutputRateLimitMode::All.to_string(), "ALL");
+    assert_eq!(OutputRateLimitMode::First.to_string(), "FIRST");
+    assert_eq!(OutputRateLimitMode::Last.to_string(), "LAST");
+    assert_eq!(OutputRateLimitMode::Snapshot.to_string(), "SNAPSHOT");
+}
+
+#[test]
+fn test_output_rate_limit_unit_display() {
+    assert_eq!(OutputRateLimitUnit::Events.to_string(), "EVENTS");
+    assert_eq!(OutputRateLimitUnit::Milliseconds.to_string(), "MILLISECONDS");
+    assert_eq!(OutputRateLimitUnit::Seconds.to_string(), "SECONDS");
+    assert_eq!(OutputRateLimitUnit::Minutes.to_string(), "MINUTES");
+    assert_eq!(OutputRateLimitUnit::Hours.to_string(), "HOURS");
+}
+
+#[test]
+fn test_output_rate_limit_unit_to_millis() {
+    assert_eq!(OutputRateLimitUnit::Events.to_millis(10), None);
+    assert_eq!(OutputRateLimitUnit::Milliseconds.to_millis(500), Some(500));
+    assert_eq!(OutputRateLimitUnit::Seconds.to_millis(5), Some(5000));
+    assert_eq!(OutputRateLimitUnit::Minutes.to_millis(2), Some(120000));
+    assert_eq!(OutputRateLimitUnit::Hours.to_millis(1), Some(3600000));
+}
+
+#[test]
+fn test_parse_output_all_every_events() {
+    let sql = "SELECT * FROM stream OUTPUT ALL EVERY 3 EVENTS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::All);
+    assert_eq!(rate_limit.value, 3);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Events);
+    assert_eq!(rate_limit.to_string(), "OUTPUT ALL EVERY 3 EVENTS");
+}
+
+#[test]
+fn test_parse_output_first_every_events() {
+    let sql = "SELECT symbol, price FROM stream OUTPUT FIRST EVERY 5 EVENTS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::First);
+    assert_eq!(rate_limit.value, 5);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Events);
+}
+
+#[test]
+fn test_parse_output_last_every_events() {
+    let sql = "SELECT * FROM stream OUTPUT LAST EVERY 10 EVENTS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::Last);
+    assert_eq!(rate_limit.value, 10);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Events);
+}
+
+#[test]
+fn test_parse_output_all_every_milliseconds() {
+    let sql = "SELECT * FROM stream OUTPUT ALL EVERY 500 MILLISECONDS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::All);
+    assert_eq!(rate_limit.value, 500);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Milliseconds);
+}
+
+#[test]
+fn test_parse_output_first_every_seconds() {
+    let sql = "SELECT * FROM stream OUTPUT FIRST EVERY 1 SECONDS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::First);
+    assert_eq!(rate_limit.value, 1);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Seconds);
+}
+
+#[test]
+fn test_parse_output_last_every_minutes() {
+    let sql = "SELECT * FROM stream OUTPUT LAST EVERY 5 MINUTES";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::Last);
+    assert_eq!(rate_limit.value, 5);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Minutes);
+}
+
+#[test]
+fn test_parse_output_snapshot_every_seconds() {
+    let sql = "SELECT SUM(price) FROM stream OUTPUT SNAPSHOT EVERY 10 SECONDS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::Snapshot);
+    assert_eq!(rate_limit.value, 10);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Seconds);
+}
+
+#[test]
+fn test_parse_output_snapshot_every_hours() {
+    let sql = "SELECT * FROM stream OUTPUT SNAPSHOT EVERY 1 HOURS";
+    let query = parse_output_rate_query(sql);
+
+    let rate_limit = query.output_rate_limit.expect("Expected OUTPUT rate limit");
+    assert_eq!(rate_limit.mode, OutputRateLimitMode::Snapshot);
+    assert_eq!(rate_limit.value, 1);
+    assert_eq!(rate_limit.unit, OutputRateLimitUnit::Hours);
+}
+
+#[test]
+fn test_parse_query_without_output_rate_limit() {
+    let sql = "SELECT * FROM stream";
+    let query = parse_output_rate_query(sql);
+    assert!(query.output_rate_limit.is_none());
+}
+
+#[test]
+fn test_output_snapshot_with_events_should_fail() {
+    let sql = "SELECT * FROM stream OUTPUT SNAPSHOT EVERY 5 EVENTS";
+    let dialect = GenericDialect {};
+    let result = Parser::new(&dialect).try_with_sql(sql).unwrap().parse_query();
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("SNAPSHOT must use time units"));
+}
+
+#[test]
+fn test_output_rate_limit_display() {
+    let rate_limit = OutputRateLimit {
+        mode: OutputRateLimitMode::All,
+        value: 3,
+        unit: OutputRateLimitUnit::Events,
+    };
+    assert_eq!(rate_limit.to_string(), "OUTPUT ALL EVERY 3 EVENTS");
+
+    let rate_limit2 = OutputRateLimit {
+        mode: OutputRateLimitMode::Snapshot,
+        value: 500,
+        unit: OutputRateLimitUnit::Milliseconds,
+    };
+    assert_eq!(rate_limit2.to_string(), "OUTPUT SNAPSHOT EVERY 500 MILLISECONDS");
+}

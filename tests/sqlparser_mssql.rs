@@ -119,6 +119,7 @@ fn parse_create_procedure() {
                     settings: None,
                     format_clause: None,
                     pipe_operators: vec![],
+                    output_rate_limit: None,
                     body: Box::new(SetExpr::Select(Box::new(Select {
                         select_token: AttachedToken::empty(),
                         distinct: None,
@@ -1414,6 +1415,7 @@ fn parse_substring_in_select() {
                     settings: None,
                     format_clause: None,
                     pipe_operators: vec![],
+                    output_rate_limit: None,
                 }),
                 query
             );
@@ -1517,7 +1519,7 @@ fn parse_mssql_declare() {
                 settings: None,
                 format_clause: None,
                 pipe_operators: vec![],
-
+                output_rate_limit: None,
                 body: Box::new(SetExpr::Select(Box::new(Select {
                     select_token: AttachedToken::empty(),
                     distinct: None,

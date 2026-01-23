@@ -1161,6 +1161,8 @@ pub const RESERVED_FOR_TABLE_ALIAS: &[Keyword] = &[
     Keyword::TABLESAMPLE,
     Keyword::FROM,
     Keyword::OPEN,
+    // for EventFlux OUTPUT rate limiting
+    Keyword::OUTPUT,
 ];
 
 /// Can't be used as a column alias, so that `SELECT <expr> alias`
