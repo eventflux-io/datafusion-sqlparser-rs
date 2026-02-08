@@ -3825,8 +3825,8 @@ pub enum StreamingWindowSpec {
     Delay { duration: Expr },
     /// Expression window: WINDOW('expression', 'count() <= 3') - dynamic window based on expression
     Expression { condition: String },
-    /// Frequent window: WINDOW('frequent', n) - tracks n most frequent items
-    Frequent { count: Expr },
+    /// Frequent window: WINDOW('frequent', n, [key_attr, ...]) - tracks n most frequent items
+    Frequent { parameters: Vec<Expr> },
     /// Lossy frequent window: WINDOW('lossyFrequent', support, error) - approximate frequent item tracking
     LossyFrequent { parameters: Vec<Expr> },
 }
@@ -3866,8 +3866,12 @@ impl fmt::Display for StreamingWindowSpec {
             StreamingWindowSpec::Expression { condition } => {
                 write!(f, "WINDOW('expression', '{}')", condition)
             }
-            StreamingWindowSpec::Frequent { count } => {
-                write!(f, "WINDOW('frequent', {})", count)
+            StreamingWindowSpec::Frequent { parameters } => {
+                write!(f, "WINDOW('frequent'")?;
+                for param in parameters {
+                    write!(f, ", {}", param)?;
+                }
+                write!(f, ")")
             }
             StreamingWindowSpec::LossyFrequent { parameters } => {
                 write!(f, "WINDOW('lossyFrequent'")?;

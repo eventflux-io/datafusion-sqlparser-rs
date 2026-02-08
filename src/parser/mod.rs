@@ -14090,9 +14090,12 @@ impl<'a> Parser<'a> {
                 StreamingWindowSpec::Expression { condition }
             }
             "frequent" => {
-                // Frequent window: parse count
-                let count = self.parse_expr()?;
-                StreamingWindowSpec::Frequent { count }
+                // Frequent window: parse count and optional key attributes
+                let mut parameters = vec![self.parse_expr()?];
+                while self.consume_token(&Token::Comma) {
+                    parameters.push(self.parse_expr()?);
+                }
+                StreamingWindowSpec::Frequent { parameters }
             }
             "lossyfrequent" => {
                 // Lossy frequent window: parse support threshold and optional error bound
