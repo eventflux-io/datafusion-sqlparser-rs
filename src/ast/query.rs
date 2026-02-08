@@ -3817,6 +3817,18 @@ pub enum StreamingWindowSpec {
     ExternalTimeBatch { timestamp_field: Expr, duration: Expr },
     /// Sort window: WINDOW('sort', 100, attr1, 'asc', ...) - maintains events in sorted order
     Sort { parameters: Vec<Expr> },
+    /// Unique window: WINDOW('unique', attr) - keeps only latest event per unique key
+    Unique { key_attr: Expr },
+    /// First unique window: WINDOW('firstUnique', attr) - keeps only first event per unique key
+    FirstUnique { key_attr: Expr },
+    /// Delay window: WINDOW('delay', duration) - delays event emission
+    Delay { duration: Expr },
+    /// Expression window: WINDOW('expression', 'count() <= 3') - dynamic window based on expression
+    Expression { condition: String },
+    /// Frequent window: WINDOW('frequent', n) - tracks n most frequent items
+    Frequent { count: Expr },
+    /// Lossy frequent window: WINDOW('lossyFrequent', support, error) - approximate frequent item tracking
+    LossyFrequent { parameters: Vec<Expr> },
 }
 
 impl fmt::Display for StreamingWindowSpec {
@@ -3837,6 +3849,28 @@ impl fmt::Display for StreamingWindowSpec {
             }
             StreamingWindowSpec::Sort { parameters } => {
                 write!(f, "WINDOW('sort'")?;
+                for param in parameters {
+                    write!(f, ", {}", param)?;
+                }
+                write!(f, ")")
+            }
+            StreamingWindowSpec::Unique { key_attr } => {
+                write!(f, "WINDOW('unique', {})", key_attr)
+            }
+            StreamingWindowSpec::FirstUnique { key_attr } => {
+                write!(f, "WINDOW('firstUnique', {})", key_attr)
+            }
+            StreamingWindowSpec::Delay { duration } => {
+                write!(f, "WINDOW('delay', {})", duration)
+            }
+            StreamingWindowSpec::Expression { condition } => {
+                write!(f, "WINDOW('expression', '{}')", condition)
+            }
+            StreamingWindowSpec::Frequent { count } => {
+                write!(f, "WINDOW('frequent', {})", count)
+            }
+            StreamingWindowSpec::LossyFrequent { parameters } => {
+                write!(f, "WINDOW('lossyFrequent'")?;
                 for param in parameters {
                     write!(f, ", {}", param)?;
                 }

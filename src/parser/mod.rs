@@ -14069,9 +14069,42 @@ impl<'a> Parser<'a> {
 
                 StreamingWindowSpec::Sort { parameters }
             }
+            "unique" => {
+                // Unique window: parse key attribute
+                let key_attr = self.parse_expr()?;
+                StreamingWindowSpec::Unique { key_attr }
+            }
+            "firstunique" => {
+                // First unique window: parse key attribute
+                let key_attr = self.parse_expr()?;
+                StreamingWindowSpec::FirstUnique { key_attr }
+            }
+            "delay" => {
+                // Delay window: parse duration in milliseconds
+                let duration = self.parse_expr()?;
+                StreamingWindowSpec::Delay { duration }
+            }
+            "expression" => {
+                // Expression window: parse condition as string literal
+                let condition = self.parse_literal_string()?;
+                StreamingWindowSpec::Expression { condition }
+            }
+            "frequent" => {
+                // Frequent window: parse count
+                let count = self.parse_expr()?;
+                StreamingWindowSpec::Frequent { count }
+            }
+            "lossyfrequent" => {
+                // Lossy frequent window: parse support threshold and optional error bound
+                let mut parameters = vec![self.parse_expr()?];
+                while self.consume_token(&Token::Comma) {
+                    parameters.push(self.parse_expr()?);
+                }
+                StreamingWindowSpec::LossyFrequent { parameters }
+            }
             _ => {
                 return self.expected(
-                    "valid streaming window type (tumbling, sliding, length, session, time, timebatch, lengthbatch, externaltime, externaltimebatch, sort)",
+                    "valid streaming window type (tumbling, sliding, length, session, time, timebatch, lengthbatch, externaltime, externaltimebatch, sort, unique, firstUnique, delay, expression, frequent, lossyFrequent)",
                     self.peek_token(),
                 )
             }
