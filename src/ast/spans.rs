@@ -102,12 +102,12 @@ impl Spanned for Query {
             order_by,
             limit_clause,
             fetch,
-            locks: _,              // todo
-            for_clause: _,         // todo, mssql specific
-            settings: _,           // todo, clickhouse specific
-            format_clause: _,      // todo, clickhouse specific
-            pipe_operators: _,     // todo bigquery specific
-            output_rate_limit: _,  // eventflux specific
+            locks: _,             // todo
+            for_clause: _,        // todo, mssql specific
+            settings: _,          // todo, clickhouse specific
+            format_clause: _,     // todo, clickhouse specific
+            pipe_operators: _,    // todo bigquery specific
+            output_rate_limit: _, // eventflux specific
         } = self;
 
         union_spans(
@@ -337,12 +337,9 @@ impl Spanned for Statement {
                 table,
                 source,
                 on_condition,
-            } => union_spans(
-                table.0.iter().map(|i| i.span()).chain(
-                    core::iter::once(source.span())
-                        .chain(core::iter::once(on_condition.span())),
-                ),
-            ),
+            } => union_spans(table.0.iter().map(|i| i.span()).chain(
+                core::iter::once(source.span()).chain(core::iter::once(on_condition.span())),
+            )),
             Statement::Install { extension_name } => extension_name.span,
             Statement::Load { extension_name } => extension_name.span,
             Statement::Directory {
@@ -568,10 +565,14 @@ impl Spanned for Statement {
             Statement::AlterSchema(s) => s.span(),
             Statement::Vacuum(..) => Span::empty(),
             Statement::AlterUser(..) => Span::empty(),
-            Statement::Partition { partition_keys, body } => union_spans(
-                partition_keys.iter().map(|k| k.attribute.span).chain(
-                    body.iter().map(|s| s.span())
-                )
+            Statement::Partition {
+                partition_keys,
+                body,
+            } => union_spans(
+                partition_keys
+                    .iter()
+                    .map(|k| k.attribute.span)
+                    .chain(body.iter().map(|s| s.span())),
             ),
         }
     }

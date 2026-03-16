@@ -66,11 +66,11 @@ pub use self::ddl::{
     ColumnPolicy, ColumnPolicyProperty, ConstraintCharacteristics, CreateConnector, CreateDomain,
     CreateFunction, CreateIndex, CreateStreamTrigger, CreateTable, CreateTrigger, Deduplicate,
     DeferrableInitial, DropBehavior, DropTrigger, GeneratedAs, GeneratedExpressionMode,
-    IdentityParameters, StreamTriggerTiming,
-    IdentityProperty, IdentityPropertyFormatKind, IdentityPropertyKind, IdentityPropertyOrder,
-    IndexColumn, IndexOption, IndexType, KeyOrIndexDisplay, NullsDistinctOption, Owner, Partition,
-    ProcedureParam, ReferentialAction, RenameTableNameKind, ReplicaIdentity, TagsColumnOption,
-    UserDefinedTypeCompositeAttributeDef, UserDefinedTypeRepresentation, ViewColumnDef,
+    IdentityParameters, IdentityProperty, IdentityPropertyFormatKind, IdentityPropertyKind,
+    IdentityPropertyOrder, IndexColumn, IndexOption, IndexType, KeyOrIndexDisplay,
+    NullsDistinctOption, Owner, Partition, ProcedureParam, ReferentialAction, RenameTableNameKind,
+    ReplicaIdentity, StreamTriggerTiming, TagsColumnOption, UserDefinedTypeCompositeAttributeDef,
+    UserDefinedTypeRepresentation, ViewColumnDef,
 };
 pub use self::dml::{Delete, Insert};
 pub use self::operator::{BinaryOperator, UnaryOperator};
@@ -83,19 +83,19 @@ pub use self::query::{
     JsonTableNestedColumn, LateralView, LimitClause, LockClause, LockType, MatchRecognizePattern,
     MatchRecognizeSymbol, Measure, NamedWindowDefinition, NamedWindowExpr, NonBlock, Offset,
     OffsetRows, OpenJsonTableColumn, OrderBy, OrderByExpr, OrderByKind, OrderByOptions,
-    PartitionKey, PipeOperator, PivotValueSource, ProjectionSelect, Query, RenameSelectItem,
-    PatternArrayIndex, PatternExpression, PatternLogicalOp, PatternMode, PatternOutputType,
-    RepetitionQuantifier, ReplaceSelectElement, ReplaceSelectItem, RowsPerMatch, Select,
-    SelectFlavor, SelectInto, SelectItem, SelectItemQualifiedWildcardKind, SetExpr, SetOperator,
-    SetQuantifier, Setting, StreamingWindowSpec, SymbolDefinition, Table, TableAlias, TableAliasColumnDef, TableFactor,
-    OutputRateLimit, OutputRateLimitMode, OutputRateLimitUnit,
-    WithinConstraint,
+    OutputRateLimit, OutputRateLimitMode, OutputRateLimitUnit, PartitionKey, PatternArrayIndex,
+    PatternExpression, PatternLogicalOp, PatternMode, PatternOutputType, PipeOperator,
+    PivotValueSource, ProjectionSelect, Query, RenameSelectItem, RepetitionQuantifier,
+    ReplaceSelectElement, ReplaceSelectItem, RowsPerMatch, Select, SelectFlavor, SelectInto,
+    SelectItem, SelectItemQualifiedWildcardKind, SetExpr, SetOperator, SetQuantifier, Setting,
+    StreamingWindowSpec, SymbolDefinition, Table, TableAlias, TableAliasColumnDef, TableFactor,
     TableFunctionArgs, TableIndexHintForClause, TableIndexHintType, TableIndexHints,
     TableIndexType, TableSample, TableSampleBucket, TableSampleKind, TableSampleMethod,
     TableSampleModifier, TableSampleQuantity, TableSampleSeed, TableSampleSeedModifier,
     TableSampleUnit, TableVersion, TableWithJoins, Top, TopQuantity, UpdateTableFromKind,
-    ValueTableMode, Values, WildcardAdditionalOptions, With, WithFill, XmlNamespaceDefinition,
-    XmlPassingArgument, XmlPassingClause, XmlTableColumn, XmlTableColumnOption,
+    ValueTableMode, Values, WildcardAdditionalOptions, With, WithFill, WithinConstraint,
+    XmlNamespaceDefinition, XmlPassingArgument, XmlPassingClause, XmlTableColumn,
+    XmlTableColumnOption,
 };
 
 pub use self::trigger::{
@@ -6239,7 +6239,10 @@ impl fmt::Display for Statement {
             Statement::AlterSchema(s) => write!(f, "{s}"),
             Statement::Vacuum(s) => write!(f, "{s}"),
             Statement::AlterUser(s) => write!(f, "{s}"),
-            Statement::Partition { partition_keys, body } => {
+            Statement::Partition {
+                partition_keys,
+                body,
+            } => {
                 write!(f, "PARTITION WITH (")?;
                 write!(f, "{}", display_comma_separated(partition_keys))?;
                 write!(f, ") BEGIN")?;

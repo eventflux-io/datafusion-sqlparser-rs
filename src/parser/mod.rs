@@ -5664,10 +5664,7 @@ impl<'a> Parser<'a> {
     /// - `AT START` - fires once at application start
     /// - `AT EVERY <n> <unit>` - fires at regular intervals
     /// - `AT CRON '<expr>'` - fires according to cron schedule
-    fn parse_stream_trigger_timing(
-        &mut self,
-        name: ObjectName,
-    ) -> Result<Statement, ParserError> {
+    fn parse_stream_trigger_timing(&mut self, name: ObjectName) -> Result<Statement, ParserError> {
         use crate::ast::{CreateStreamTrigger, StreamTriggerTiming};
 
         let timing = if self.parse_keyword(Keyword::START) {
@@ -5684,7 +5681,10 @@ impl<'a> Parser<'a> {
             return self.expected("START, EVERY, or CRON after AT", self.peek_token());
         };
 
-        Ok(Statement::CreateStreamTrigger(CreateStreamTrigger { name, timing }))
+        Ok(Statement::CreateStreamTrigger(CreateStreamTrigger {
+            name,
+            timing,
+        }))
     }
 
     /// Parse streaming time duration: <value> <time_unit>
@@ -14236,7 +14236,7 @@ impl<'a> Parser<'a> {
         // Validate non-empty body
         if body.is_empty() {
             return Err(ParserError::ParserError(
-                "PARTITION body cannot be empty - at least one query required".to_string()
+                "PARTITION body cannot be empty - at least one query required".to_string(),
             ));
         }
 
@@ -15027,14 +15027,24 @@ impl<'a> Parser<'a> {
 
         // Now check for filter after count quantifier: [expression]
         // This allows: A{2,3}[filter] as well as A[filter]
-        if let PatternExpression::Count { pattern, min_count, max_count } = term {
+        if let PatternExpression::Count {
+            pattern,
+            min_count,
+            max_count,
+        } = term
+        {
             // If there's a count, check for filter after it
             if self.consume_token(&Token::LBracket) {
                 let filter_expr = self.parse_expr()?;
                 self.expect_token(&Token::RBracket)?;
 
                 // Unwrap the stream inside and add filter to it
-                if let PatternExpression::Stream { alias, stream_name, filter: _ } = *pattern {
+                if let PatternExpression::Stream {
+                    alias,
+                    stream_name,
+                    filter: _,
+                } = *pattern
+                {
                     return Ok(PatternExpression::Count {
                         pattern: Box::new(PatternExpression::Stream {
                             alias,
@@ -15046,8 +15056,17 @@ impl<'a> Parser<'a> {
                     });
                 }
             }
-            Ok(PatternExpression::Count { pattern, min_count, max_count })
-        } else if let PatternExpression::Stream { alias, stream_name, filter: None } = &term {
+            Ok(PatternExpression::Count {
+                pattern,
+                min_count,
+                max_count,
+            })
+        } else if let PatternExpression::Stream {
+            alias,
+            stream_name,
+            filter: None,
+        } = &term
+        {
             // No count, but check for filter on plain stream
             if self.consume_token(&Token::LBracket) {
                 let filter_expr = self.parse_expr()?;
@@ -15061,7 +15080,12 @@ impl<'a> Parser<'a> {
             Ok(term)
         } else if let PatternExpression::Every { pattern } = term {
             // EVERY wrapping - need to check for filter on inner pattern
-            if let PatternExpression::Stream { alias, stream_name, filter: None } = *pattern {
+            if let PatternExpression::Stream {
+                alias,
+                stream_name,
+                filter: None,
+            } = *pattern
+            {
                 if self.consume_token(&Token::LBracket) {
                     let filter_expr = self.parse_expr()?;
                     self.expect_token(&Token::RBracket)?;
@@ -15151,7 +15175,10 @@ impl<'a> Parser<'a> {
             let stream_name = self.parse_object_name(false)?;
             (Some(first_ident), stream_name)
         } else {
-            (None, ObjectName(vec![ObjectNamePart::Identifier(first_ident)]))
+            (
+                None,
+                ObjectName(vec![ObjectNamePart::Identifier(first_ident)]),
+            )
         };
 
         Ok(PatternExpression::Stream {
@@ -15174,7 +15201,10 @@ impl<'a> Parser<'a> {
             (Some(first_ident), stream_name)
         } else {
             // Just stream_name (no alias)
-            (None, ObjectName(vec![ObjectNamePart::Identifier(first_ident)]))
+            (
+                None,
+                ObjectName(vec![ObjectNamePart::Identifier(first_ident)]),
+            )
         };
 
         // Parse optional filter: [expression]

@@ -32,14 +32,13 @@ use crate::ast::value::escape_single_quote_string;
 use crate::ast::{
     display_comma_separated, display_separated, table_constraints::TableConstraint, ArgMode,
     CommentDef, ConditionalStatements, CreateFunctionBody, CreateFunctionUsing,
-    CreateTableLikeKind, CreateTableOptions, DataType, Expr, FileFormat,
-    FunctionBehavior, FunctionCalledOnNull, FunctionDeterminismSpecifier, FunctionParallel,
-    HiveDistributionStyle, HiveFormat, HiveIOFormat, HiveRowFormat, Ident, InitializeKind,
-    MySQLColumnPosition, ObjectName, OnCommit, OneOrManyWithParens, OperateFunctionArg,
-    OrderByExpr, ProjectionSelect, Query, RefreshModeKind, RowAccessPolicy, SequenceOptions,
-    Spanned, SqlOption, StorageSerializationPolicy, TableVersion, Tag, TriggerEvent,
-    TriggerExecBody, TriggerObject, TriggerPeriod, TriggerReferencing, Value, ValueWithSpan,
-    WrappedCollection,
+    CreateTableLikeKind, CreateTableOptions, DataType, Expr, FileFormat, FunctionBehavior,
+    FunctionCalledOnNull, FunctionDeterminismSpecifier, FunctionParallel, HiveDistributionStyle,
+    HiveFormat, HiveIOFormat, HiveRowFormat, Ident, InitializeKind, MySQLColumnPosition,
+    ObjectName, OnCommit, OneOrManyWithParens, OperateFunctionArg, OrderByExpr, ProjectionSelect,
+    Query, RefreshModeKind, RowAccessPolicy, SequenceOptions, Spanned, SqlOption,
+    StorageSerializationPolicy, TableVersion, Tag, TriggerEvent, TriggerExecBody, TriggerObject,
+    TriggerPeriod, TriggerReferencing, Value, ValueWithSpan, WrappedCollection,
 };
 use crate::display_utils::{DisplayCommaSeparated, Indent, NewLine, SpaceOrNewline};
 use crate::keywords::Keyword;
@@ -3138,7 +3137,6 @@ impl fmt::Display for StreamTriggerTiming {
         }
     }
 }
-
 
 /// EventFlux streaming trigger definition
 ///

@@ -1850,7 +1850,7 @@ fn parse_merge() {
                     json_path: None,
                     sample: None,
                     index_hints: vec![],
-                window: None,
+                    window: None,
                 },
                 table
             );
@@ -1869,7 +1869,7 @@ fn parse_merge() {
                     json_path: None,
                     sample: None,
                     index_hints: vec![],
-                window: None,
+                    window: None,
                 },
                 source
             );

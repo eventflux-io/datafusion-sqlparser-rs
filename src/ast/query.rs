@@ -3812,9 +3812,15 @@ pub enum StreamingWindowSpec {
     /// Length batch window: WINDOW('lengthBatch', 50)
     LengthBatch { size: Expr },
     /// External time window: WINDOW('externalTime', timestamp, 1 SECOND)
-    ExternalTime { timestamp_field: Expr, duration: Expr },
+    ExternalTime {
+        timestamp_field: Expr,
+        duration: Expr,
+    },
     /// External time batch window: WINDOW('externalTimeBatch', timestamp, 1 SECOND)
-    ExternalTimeBatch { timestamp_field: Expr, duration: Expr },
+    ExternalTimeBatch {
+        timestamp_field: Expr,
+        duration: Expr,
+    },
     /// Sort window: WINDOW('sort', 100, attr1, 'asc', ...) - maintains events in sorted order
     Sort { parameters: Vec<Expr> },
     /// Unique window: WINDOW('unique', attr) - keeps only latest event per unique key
@@ -3834,18 +3840,40 @@ pub enum StreamingWindowSpec {
 impl fmt::Display for StreamingWindowSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            StreamingWindowSpec::Tumbling { duration } => write!(f, "WINDOW('tumbling', {})", duration),
-            StreamingWindowSpec::Sliding { size, slide } => write!(f, "WINDOW('sliding', {}, {})", size, slide),
+            StreamingWindowSpec::Tumbling { duration } => {
+                write!(f, "WINDOW('tumbling', {})", duration)
+            }
+            StreamingWindowSpec::Sliding { size, slide } => {
+                write!(f, "WINDOW('sliding', {}, {})", size, slide)
+            }
             StreamingWindowSpec::Length { size } => write!(f, "WINDOW('length', {})", size),
             StreamingWindowSpec::Session { gap } => write!(f, "WINDOW('session', {})", gap),
             StreamingWindowSpec::Time { duration } => write!(f, "WINDOW('time', {})", duration),
-            StreamingWindowSpec::TimeBatch { duration } => write!(f, "WINDOW('timeBatch', {})", duration),
-            StreamingWindowSpec::LengthBatch { size } => write!(f, "WINDOW('lengthBatch', {})", size),
-            StreamingWindowSpec::ExternalTime { timestamp_field, duration } => {
-                write!(f, "WINDOW('externalTime', {}, {})", timestamp_field, duration)
+            StreamingWindowSpec::TimeBatch { duration } => {
+                write!(f, "WINDOW('timeBatch', {})", duration)
             }
-            StreamingWindowSpec::ExternalTimeBatch { timestamp_field, duration } => {
-                write!(f, "WINDOW('externalTimeBatch', {}, {})", timestamp_field, duration)
+            StreamingWindowSpec::LengthBatch { size } => {
+                write!(f, "WINDOW('lengthBatch', {})", size)
+            }
+            StreamingWindowSpec::ExternalTime {
+                timestamp_field,
+                duration,
+            } => {
+                write!(
+                    f,
+                    "WINDOW('externalTime', {}, {})",
+                    timestamp_field, duration
+                )
+            }
+            StreamingWindowSpec::ExternalTimeBatch {
+                timestamp_field,
+                duration,
+            } => {
+                write!(
+                    f,
+                    "WINDOW('externalTimeBatch', {}, {})",
+                    timestamp_field, duration
+                )
             }
             StreamingWindowSpec::Sort { parameters } => {
                 write!(f, "WINDOW('sort'")?;
@@ -4135,7 +4163,11 @@ pub enum PatternExpression {
 impl fmt::Display for PatternExpression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            PatternExpression::Stream { alias, stream_name, filter } => {
+            PatternExpression::Stream {
+                alias,
+                stream_name,
+                filter,
+            } => {
                 if let Some(a) = alias {
                     write!(f, "{}={}", a, stream_name)?;
                 } else {
@@ -4146,7 +4178,11 @@ impl fmt::Display for PatternExpression {
                 }
                 Ok(())
             }
-            PatternExpression::Count { pattern, min_count, max_count } => {
+            PatternExpression::Count {
+                pattern,
+                min_count,
+                max_count,
+            } => {
                 write!(f, "{}", pattern)?;
                 if min_count == max_count {
                     write!(f, "{{{}}}", min_count)
@@ -4163,7 +4199,10 @@ impl fmt::Display for PatternExpression {
             PatternExpression::Every { pattern } => {
                 write!(f, "EVERY ({})", pattern)
             }
-            PatternExpression::Absent { stream_name, duration } => {
+            PatternExpression::Absent {
+                stream_name,
+                duration,
+            } => {
                 write!(f, "NOT {} FOR {}", stream_name, duration)
             }
             PatternExpression::Grouped { pattern } => {

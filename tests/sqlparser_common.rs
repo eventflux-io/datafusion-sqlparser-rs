@@ -553,7 +553,7 @@ fn parse_update_with_table_alias() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
-                window: None,
+                        window: None,
                     },
                     joins: vec![],
                 },
@@ -848,7 +848,7 @@ fn parse_where_delete_with_alias_statement() {
                     json_path: None,
                     sample: None,
                     index_hints: vec![],
-                window: None,
+                    window: None,
                 },
                 from[0].relation,
             );
@@ -868,7 +868,7 @@ fn parse_where_delete_with_alias_statement() {
                         json_path: None,
                         sample: None,
                         index_hints: vec![],
-                window: None,
+                        window: None,
                     },
                     joins: vec![],
                 }]),
@@ -9788,7 +9788,7 @@ fn parse_merge() {
                     json_path: None,
                     sample: None,
                     index_hints: vec![],
-                window: None,
+                    window: None,
                 }
             );
             assert_eq!(table, table_no_into);
@@ -11197,7 +11197,7 @@ fn parse_unpivot_table() {
             json_path: None,
             sample: None,
             index_hints: vec![],
-                window: None,
+            window: None,
         }),
         null_inclusion: None,
         value: Expr::Identifier(Ident::new("quantity")),
@@ -11488,7 +11488,7 @@ fn parse_pivot_unpivot_table() {
                     json_path: None,
                     sample: None,
                     index_hints: vec![],
-                window: None,
+                    window: None,
                 }),
                 null_inclusion: None,
                 value: Expr::Identifier(Ident::new("population")),

@@ -251,8 +251,14 @@ fn test_within_constraint_event_count() {
 
 #[test]
 fn test_pattern_output_type_display() {
-    assert_eq!(PatternOutputType::CurrentEvents.to_string(), "CURRENT EVENTS");
-    assert_eq!(PatternOutputType::ExpiredEvents.to_string(), "EXPIRED EVENTS");
+    assert_eq!(
+        PatternOutputType::CurrentEvents.to_string(),
+        "CURRENT EVENTS"
+    );
+    assert_eq!(
+        PatternOutputType::ExpiredEvents.to_string(),
+        "EXPIRED EVENTS"
+    );
     assert_eq!(PatternOutputType::AllEvents.to_string(), "ALL EVENTS");
 }
 
@@ -360,7 +366,10 @@ fn test_table_factor_pattern_with_within_events() {
         alias: None,
     };
 
-    assert_eq!(table_factor.to_string(), "PATTERN (e1=A -> e2=B) WITHIN 100 EVENTS");
+    assert_eq!(
+        table_factor.to_string(),
+        "PATTERN (e1=A -> e2=B) WITHIN 100 EVENTS"
+    );
 }
 
 #[test]
@@ -496,7 +505,10 @@ fn test_table_factor_pattern_logical_and() {
         alias: None,
     };
 
-    assert_eq!(table_factor.to_string(), "PATTERN ((e1=A AND e2=B) -> e3=C)");
+    assert_eq!(
+        table_factor.to_string(),
+        "PATTERN ((e1=A AND e2=B) -> e3=C)"
+    );
 }
 
 // ============================================================================
@@ -597,15 +609,13 @@ fn parse_sql(sql: &str) -> sqlparser::ast::Statement {
 fn extract_from_pattern(sql: &str) -> TableFactor {
     let stmt = parse_sql(sql);
     match stmt {
-        sqlparser::ast::Statement::Query(query) => {
-            match *query.body {
-                sqlparser::ast::SetExpr::Select(select) => {
-                    assert!(!select.from.is_empty(), "Expected FROM clause");
-                    select.from.into_iter().next().unwrap().relation
-                }
-                _ => panic!("Expected SELECT"),
+        sqlparser::ast::Statement::Query(query) => match *query.body {
+            sqlparser::ast::SetExpr::Select(select) => {
+                assert!(!select.from.is_empty(), "Expected FROM clause");
+                select.from.into_iter().next().unwrap().relation
             }
-        }
+            _ => panic!("Expected SELECT"),
+        },
         _ => panic!("Expected Query"),
     }
 }
@@ -616,7 +626,12 @@ fn test_parse_from_pattern_basic() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { mode, pattern, within, alias } => {
+        TableFactor::Pattern {
+            mode,
+            pattern,
+            within,
+            alias,
+        } => {
             assert_eq!(mode, PatternMode::Pattern);
             assert!(within.is_none());
             assert!(alias.is_none());
@@ -626,7 +641,11 @@ fn test_parse_from_pattern_basic() {
                 PatternExpression::Sequence { first, second } => {
                     // Verify first element is e1=A
                     match *first {
-                        PatternExpression::Stream { alias, stream_name, filter } => {
+                        PatternExpression::Stream {
+                            alias,
+                            stream_name,
+                            filter,
+                        } => {
                             assert_eq!(alias.unwrap().value, "e1");
                             assert_eq!(stream_name.to_string(), "A");
                             assert!(filter.is_none());
@@ -635,7 +654,11 @@ fn test_parse_from_pattern_basic() {
                     }
                     // Verify second element is e2=B
                     match *second {
-                        PatternExpression::Stream { alias, stream_name, filter } => {
+                        PatternExpression::Stream {
+                            alias,
+                            stream_name,
+                            filter,
+                        } => {
                             assert_eq!(alias.unwrap().value, "e2");
                             assert_eq!(stream_name.to_string(), "B");
                             assert!(filter.is_none());
@@ -669,16 +692,18 @@ fn test_parse_pattern_stream_no_alias() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Stream { alias, stream_name, filter } => {
-                    assert!(alias.is_none(), "Expected no alias");
-                    assert_eq!(stream_name.to_string(), "StockStream");
-                    assert!(filter.is_none());
-                }
-                _ => panic!("Expected Stream pattern"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Stream {
+                alias,
+                stream_name,
+                filter,
+            } => {
+                assert!(alias.is_none(), "Expected no alias");
+                assert_eq!(stream_name.to_string(), "StockStream");
+                assert!(filter.is_none());
             }
-        }
+            _ => panic!("Expected Stream pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -700,7 +725,9 @@ fn test_parse_pattern_three_way_sequence() {
                     }
                     // second should be C
                     match *second {
-                        PatternExpression::Stream { alias, stream_name, .. } => {
+                        PatternExpression::Stream {
+                            alias, stream_name, ..
+                        } => {
                             assert_eq!(alias.unwrap().value, "e3");
                             assert_eq!(stream_name.to_string(), "C");
                         }
@@ -720,27 +747,29 @@ fn test_parse_pattern_count_quantifier_exact() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Sequence { first, .. } => {
-                    match *first {
-                        PatternExpression::Count { pattern, min_count, max_count } => {
-                            assert_eq!(min_count, 3);
-                            assert_eq!(max_count, 3, "Exact count {{3}} should be {{3,3}}");
-                            match *pattern {
-                                PatternExpression::Stream { alias, stream_name, .. } => {
-                                    assert_eq!(alias.unwrap().value, "e1");
-                                    assert_eq!(stream_name.to_string(), "A");
-                                }
-                                _ => panic!("Expected Stream inside Count"),
-                            }
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Sequence { first, .. } => match *first {
+                PatternExpression::Count {
+                    pattern,
+                    min_count,
+                    max_count,
+                } => {
+                    assert_eq!(min_count, 3);
+                    assert_eq!(max_count, 3, "Exact count {{3}} should be {{3,3}}");
+                    match *pattern {
+                        PatternExpression::Stream {
+                            alias, stream_name, ..
+                        } => {
+                            assert_eq!(alias.unwrap().value, "e1");
+                            assert_eq!(stream_name.to_string(), "A");
                         }
-                        _ => panic!("Expected Count pattern for first"),
+                        _ => panic!("Expected Stream inside Count"),
                     }
                 }
-                _ => panic!("Expected Sequence pattern"),
-            }
-        }
+                _ => panic!("Expected Count pattern for first"),
+            },
+            _ => panic!("Expected Sequence pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -751,15 +780,17 @@ fn test_parse_pattern_count_quantifier_range() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Count { min_count, max_count, .. } => {
-                    assert_eq!(min_count, 2);
-                    assert_eq!(max_count, 5);
-                }
-                _ => panic!("Expected Count pattern"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Count {
+                min_count,
+                max_count,
+                ..
+            } => {
+                assert_eq!(min_count, 2);
+                assert_eq!(max_count, 5);
             }
-        }
+            _ => panic!("Expected Count pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -770,28 +801,30 @@ fn test_parse_pattern_logical_and() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Logical { left, op, right } => {
-                    assert_eq!(op, PatternLogicalOp::And);
-                    match *left {
-                        PatternExpression::Stream { alias, stream_name, .. } => {
-                            assert_eq!(alias.unwrap().value, "e1");
-                            assert_eq!(stream_name.to_string(), "A");
-                        }
-                        _ => panic!("Expected Stream for left"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Logical { left, op, right } => {
+                assert_eq!(op, PatternLogicalOp::And);
+                match *left {
+                    PatternExpression::Stream {
+                        alias, stream_name, ..
+                    } => {
+                        assert_eq!(alias.unwrap().value, "e1");
+                        assert_eq!(stream_name.to_string(), "A");
                     }
-                    match *right {
-                        PatternExpression::Stream { alias, stream_name, .. } => {
-                            assert_eq!(alias.unwrap().value, "e2");
-                            assert_eq!(stream_name.to_string(), "B");
-                        }
-                        _ => panic!("Expected Stream for right"),
-                    }
+                    _ => panic!("Expected Stream for left"),
                 }
-                _ => panic!("Expected Logical pattern"),
+                match *right {
+                    PatternExpression::Stream {
+                        alias, stream_name, ..
+                    } => {
+                        assert_eq!(alias.unwrap().value, "e2");
+                        assert_eq!(stream_name.to_string(), "B");
+                    }
+                    _ => panic!("Expected Stream for right"),
+                }
             }
-        }
+            _ => panic!("Expected Logical pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -802,14 +835,12 @@ fn test_parse_pattern_logical_or() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Logical { op, .. } => {
-                    assert_eq!(op, PatternLogicalOp::Or);
-                }
-                _ => panic!("Expected Logical pattern"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Logical { op, .. } => {
+                assert_eq!(op, PatternLogicalOp::Or);
             }
-        }
+            _ => panic!("Expected Logical pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -824,20 +855,18 @@ fn test_parse_pattern_every() {
             // The result should be: EVERY(A) -> B
             // This is because EVERY only wraps the immediately following term
             match pattern {
-                PatternExpression::Sequence { first, .. } => {
-                    match *first {
-                        PatternExpression::Every { pattern } => {
-                            match *pattern {
-                                PatternExpression::Stream { alias, stream_name, .. } => {
-                                    assert_eq!(alias.unwrap().value, "e1");
-                                    assert_eq!(stream_name.to_string(), "A");
-                                }
-                                _ => panic!("Expected Stream inside Every"),
-                            }
+                PatternExpression::Sequence { first, .. } => match *first {
+                    PatternExpression::Every { pattern } => match *pattern {
+                        PatternExpression::Stream {
+                            alias, stream_name, ..
+                        } => {
+                            assert_eq!(alias.unwrap().value, "e1");
+                            assert_eq!(stream_name.to_string(), "A");
                         }
-                        _ => panic!("Expected Every pattern for first"),
-                    }
-                }
+                        _ => panic!("Expected Stream inside Every"),
+                    },
+                    _ => panic!("Expected Every pattern for first"),
+                },
                 _ => panic!("Expected Sequence pattern"),
             }
         }
@@ -866,7 +895,9 @@ fn test_parse_pattern_grouped() {
                     }
                     // second should be C
                     match *second {
-                        PatternExpression::Stream { alias, stream_name, .. } => {
+                        PatternExpression::Stream {
+                            alias, stream_name, ..
+                        } => {
                             assert_eq!(alias.unwrap().value, "e3");
                             assert_eq!(stream_name.to_string(), "C");
                         }
@@ -886,14 +917,12 @@ fn test_parse_pattern_within_events() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { within, .. } => {
-            match within {
-                Some(WithinConstraint::EventCount(count)) => {
-                    assert_eq!(count, 100);
-                }
-                _ => panic!("Expected WITHIN 100 EVENTS"),
+        TableFactor::Pattern { within, .. } => match within {
+            Some(WithinConstraint::EventCount(count)) => {
+                assert_eq!(count, 100);
             }
-        }
+            _ => panic!("Expected WITHIN 100 EVENTS"),
+        },
         _ => panic!("Expected TableFactor::Pattern"),
     }
 }
@@ -942,14 +971,20 @@ fn test_parse_sequence_with_count() {
             match pattern {
                 PatternExpression::Sequence { first, second } => {
                     match *first {
-                        PatternExpression::Count { min_count, max_count, .. } => {
+                        PatternExpression::Count {
+                            min_count,
+                            max_count,
+                            ..
+                        } => {
                             assert_eq!(min_count, 3);
                             assert_eq!(max_count, 3);
                         }
                         _ => panic!("Expected Count pattern"),
                     }
                     match *second {
-                        PatternExpression::Stream { alias, stream_name, .. } => {
+                        PatternExpression::Stream {
+                            alias, stream_name, ..
+                        } => {
                             assert_eq!(alias.unwrap().value, "e2");
                             assert_eq!(stream_name.to_string(), "Logout");
                         }
@@ -975,13 +1010,20 @@ fn test_parse_pattern_with_filter() {
     match table_factor {
         TableFactor::Pattern { pattern, .. } => {
             match pattern {
-                PatternExpression::Stream { alias, stream_name, filter } => {
+                PatternExpression::Stream {
+                    alias,
+                    stream_name,
+                    filter,
+                } => {
                     assert_eq!(alias.unwrap().value, "e1");
                     assert_eq!(stream_name.to_string(), "StockStream");
                     assert!(filter.is_some(), "Expected filter condition");
                     // The filter should be: price > 100
                     let filter_str = filter.unwrap().to_string();
-                    assert!(filter_str.contains("price"), "Filter should reference 'price'");
+                    assert!(
+                        filter_str.contains("price"),
+                        "Filter should reference 'price'"
+                    );
                     assert!(filter_str.contains("100"), "Filter should contain '100'");
                 }
                 _ => panic!("Expected Stream pattern"),
@@ -997,18 +1039,22 @@ fn test_parse_pattern_with_complex_filter() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Stream { filter, .. } => {
-                    assert!(filter.is_some(), "Expected filter condition");
-                    let filter_str = filter.unwrap().to_string();
-                    assert!(filter_str.contains("symbol"), "Filter should reference 'symbol'");
-                    assert!(filter_str.contains("AAPL"), "Filter should contain 'AAPL'");
-                    assert!(filter_str.contains("quantity"), "Filter should reference 'quantity'");
-                }
-                _ => panic!("Expected Stream pattern"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Stream { filter, .. } => {
+                assert!(filter.is_some(), "Expected filter condition");
+                let filter_str = filter.unwrap().to_string();
+                assert!(
+                    filter_str.contains("symbol"),
+                    "Filter should reference 'symbol'"
+                );
+                assert!(filter_str.contains("AAPL"), "Filter should contain 'AAPL'");
+                assert!(
+                    filter_str.contains("quantity"),
+                    "Filter should reference 'quantity'"
+                );
             }
-        }
+            _ => panic!("Expected Stream pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_with_complex_filter"),
     }
 }
@@ -1062,7 +1108,11 @@ fn test_parse_pattern_within_seconds() {
                 Some(WithinConstraint::Time(expr)) => {
                     let expr_str = expr.to_string();
                     // 10 seconds = 10000 milliseconds
-                    assert_eq!(expr_str, "10000", "10 SECONDS should be 10000ms: {}", expr_str);
+                    assert_eq!(
+                        expr_str, "10000",
+                        "10 SECONDS should be 10000ms: {}",
+                        expr_str
+                    );
                 }
                 _ => panic!("Expected WITHIN Time constraint, got {:?}", within),
             }
@@ -1078,15 +1128,17 @@ fn test_parse_pattern_within_milliseconds() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { within, .. } => {
-            match within {
-                Some(WithinConstraint::Time(expr)) => {
-                    let expr_str = expr.to_string();
-                    assert_eq!(expr_str, "5000", "5000 MILLISECONDS should be 5000ms: {}", expr_str);
-                }
-                _ => panic!("Expected WITHIN Time constraint"),
+        TableFactor::Pattern { within, .. } => match within {
+            Some(WithinConstraint::Time(expr)) => {
+                let expr_str = expr.to_string();
+                assert_eq!(
+                    expr_str, "5000",
+                    "5000 MILLISECONDS should be 5000ms: {}",
+                    expr_str
+                );
             }
-        }
+            _ => panic!("Expected WITHIN Time constraint"),
+        },
         _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_within_milliseconds"),
     }
 }
@@ -1103,7 +1155,11 @@ fn test_parse_pattern_within_minutes() {
                 Some(WithinConstraint::Time(expr)) => {
                     let expr_str = expr.to_string();
                     // 5 minutes = 300000 milliseconds
-                    assert_eq!(expr_str, "300000", "5 MINUTES should be 300000ms: {}", expr_str);
+                    assert_eq!(
+                        expr_str, "300000",
+                        "5 MINUTES should be 300000ms: {}",
+                        expr_str
+                    );
                 }
                 _ => panic!("Expected WITHIN Time constraint"),
             }
@@ -1131,8 +1187,16 @@ fn test_parse_pattern_cross_stream_filter() {
                             assert!(filter.is_some(), "Expected cross-stream filter");
                             let filter_str = filter.unwrap().to_string();
                             // Should reference e1.price
-                            assert!(filter_str.contains("e1"), "Should reference e1: {}", filter_str);
-                            assert!(filter_str.contains("price"), "Should reference price: {}", filter_str);
+                            assert!(
+                                filter_str.contains("e1"),
+                                "Should reference e1: {}",
+                                filter_str
+                            );
+                            assert!(
+                                filter_str.contains("price"),
+                                "Should reference price: {}",
+                                filter_str
+                            );
                         }
                         _ => panic!("Expected Stream for second"),
                     }
@@ -1155,7 +1219,12 @@ fn test_parse_complex_pattern_with_all_features() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { mode, pattern, within, .. } => {
+        TableFactor::Pattern {
+            mode,
+            pattern,
+            within,
+            ..
+        } => {
             assert_eq!(mode, PatternMode::Pattern);
 
             // Check WITHIN
@@ -1168,25 +1237,29 @@ fn test_parse_complex_pattern_with_all_features() {
 
             // Check pattern structure
             match pattern {
-                PatternExpression::Sequence { first, .. } => {
-                    match *first {
-                        PatternExpression::Count { pattern, min_count, max_count } => {
-                            assert_eq!(min_count, 2);
-                            assert_eq!(max_count, 3);
-                            match *pattern {
-                                PatternExpression::Stream { filter, .. } => {
-                                    assert!(filter.is_some(), "Expected filter on counted stream");
-                                }
-                                _ => panic!("Expected Stream inside Count"),
+                PatternExpression::Sequence { first, .. } => match *first {
+                    PatternExpression::Count {
+                        pattern,
+                        min_count,
+                        max_count,
+                    } => {
+                        assert_eq!(min_count, 2);
+                        assert_eq!(max_count, 3);
+                        match *pattern {
+                            PatternExpression::Stream { filter, .. } => {
+                                assert!(filter.is_some(), "Expected filter on counted stream");
                             }
+                            _ => panic!("Expected Stream inside Count"),
                         }
-                        _ => panic!("Expected Count pattern"),
                     }
-                }
+                    _ => panic!("Expected Count pattern"),
+                },
                 _ => panic!("Expected Sequence pattern"),
             }
         }
-        _ => panic!("Expected TableFactor::Pattern in test_parse_complex_pattern_with_all_features"),
+        _ => {
+            panic!("Expected TableFactor::Pattern in test_parse_complex_pattern_with_all_features")
+        }
     }
 }
 
@@ -1196,25 +1269,19 @@ fn test_parse_pattern_every_with_filter() {
     let table_factor = extract_from_pattern(sql);
 
     match table_factor {
-        TableFactor::Pattern { pattern, .. } => {
-            match pattern {
-                PatternExpression::Sequence { first, .. } => {
-                    match *first {
-                        PatternExpression::Every { pattern } => {
-                            match *pattern {
-                                PatternExpression::Stream { alias, filter, .. } => {
-                                    assert_eq!(alias.unwrap().value, "e1");
-                                    assert!(filter.is_some(), "Expected filter in EVERY pattern");
-                                }
-                                _ => panic!("Expected Stream inside Every"),
-                            }
-                        }
-                        _ => panic!("Expected Every pattern"),
+        TableFactor::Pattern { pattern, .. } => match pattern {
+            PatternExpression::Sequence { first, .. } => match *first {
+                PatternExpression::Every { pattern } => match *pattern {
+                    PatternExpression::Stream { alias, filter, .. } => {
+                        assert_eq!(alias.unwrap().value, "e1");
+                        assert!(filter.is_some(), "Expected filter in EVERY pattern");
                     }
-                }
-                _ => panic!("Expected Sequence pattern"),
-            }
-        }
+                    _ => panic!("Expected Stream inside Every"),
+                },
+                _ => panic!("Expected Every pattern"),
+            },
+            _ => panic!("Expected Sequence pattern"),
+        },
         _ => panic!("Expected TableFactor::Pattern in test_parse_pattern_every_with_filter"),
     }
 }
@@ -1231,14 +1298,12 @@ fn test_parse_pattern_logical_with_sequence() {
                 PatternExpression::Sequence { first, second } => {
                     // first should be Grouped(A AND B)
                     match *first {
-                        PatternExpression::Grouped { pattern } => {
-                            match *pattern {
-                                PatternExpression::Logical { op, .. } => {
-                                    assert_eq!(op, PatternLogicalOp::And);
-                                }
-                                _ => panic!("Expected Logical inside Grouped"),
+                        PatternExpression::Grouped { pattern } => match *pattern {
+                            PatternExpression::Logical { op, .. } => {
+                                assert_eq!(op, PatternLogicalOp::And);
                             }
-                        }
+                            _ => panic!("Expected Logical inside Grouped"),
+                        },
                         _ => panic!("Expected Grouped pattern"),
                     }
                     // second should be C
@@ -1264,7 +1329,9 @@ use sqlparser::ast::{OutputRateLimit, OutputRateLimitMode, OutputRateLimitUnit};
 
 fn parse_output_rate_query(sql: &str) -> sqlparser::ast::Query {
     let dialect = sqlparser::dialect::GenericDialect {};
-    let mut parser = sqlparser::parser::Parser::new(&dialect).try_with_sql(sql).unwrap();
+    let mut parser = sqlparser::parser::Parser::new(&dialect)
+        .try_with_sql(sql)
+        .unwrap();
     *parser.parse_query().unwrap()
 }
 
@@ -1279,7 +1346,10 @@ fn test_output_rate_limit_mode_display() {
 #[test]
 fn test_output_rate_limit_unit_display() {
     assert_eq!(OutputRateLimitUnit::Events.to_string(), "EVENTS");
-    assert_eq!(OutputRateLimitUnit::Milliseconds.to_string(), "MILLISECONDS");
+    assert_eq!(
+        OutputRateLimitUnit::Milliseconds.to_string(),
+        "MILLISECONDS"
+    );
     assert_eq!(OutputRateLimitUnit::Seconds.to_string(), "SECONDS");
     assert_eq!(OutputRateLimitUnit::Minutes.to_string(), "MINUTES");
     assert_eq!(OutputRateLimitUnit::Hours.to_string(), "HOURS");
@@ -1394,7 +1464,10 @@ fn test_parse_query_without_output_rate_limit() {
 fn test_output_snapshot_with_events_should_fail() {
     let sql = "SELECT * FROM stream OUTPUT SNAPSHOT EVERY 5 EVENTS";
     let dialect = GenericDialect {};
-    let result = Parser::new(&dialect).try_with_sql(sql).unwrap().parse_query();
+    let result = Parser::new(&dialect)
+        .try_with_sql(sql)
+        .unwrap()
+        .parse_query();
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("SNAPSHOT must use time units"));
@@ -1414,5 +1487,8 @@ fn test_output_rate_limit_display() {
         value: 500,
         unit: OutputRateLimitUnit::Milliseconds,
     };
-    assert_eq!(rate_limit2.to_string(), "OUTPUT SNAPSHOT EVERY 500 MILLISECONDS");
+    assert_eq!(
+        rate_limit2.to_string(),
+        "OUTPUT SNAPSHOT EVERY 500 MILLISECONDS"
+    );
 }
